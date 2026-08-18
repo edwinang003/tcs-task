@@ -57,7 +57,14 @@ export function openProject(projectId: string): void {
  * device" and "archived a moment ago" resolve through one branch: both simply
  * stop appearing in `listProjects`.
  */
-export function resolveProject(projects: Project[], current: Route): string {
+export function resolveProject(
+  projects: Project[] | undefined,
+  current: Route,
+): string {
+  // `undefined` means the read has not answered yet. An empty list would
+  // otherwise read as "your project is gone" and resolve to Inbox, so the
+  // stored id is trusted until there is something to check it against.
+  if (projects === undefined) return current.projectId
   const exists = projects.some((p) => p.id === current.projectId)
   return exists ? current.projectId : activeWorkspace().projectId
 }
