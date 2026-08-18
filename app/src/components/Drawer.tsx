@@ -57,7 +57,7 @@ export function Drawer({
           Projects
         </p>
         <ul className="flex-1 overflow-y-auto">
-          {(projects ?? []).map((project) => (
+          {projects.map((project) => (
             <li key={project.id}>
               <button
                 type="button"

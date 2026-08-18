@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { InstallButton } from './components/InstallButton'
 import { QuickAdd } from './components/QuickAdd'
 import { TaskList } from './components/TaskList'
@@ -8,6 +8,7 @@ import { UpdatePrompt } from './components/UpdatePrompt'
 import { Drawer } from './components/Drawer'
 import { renameProject, archiveProject } from './lib/repo'
 import { useOpenProject } from './lib/useOpenProject'
+import { useInlineRename } from './lib/useInlineRename'
 import { pushUndo } from './lib/undo'
 
 /**
@@ -19,18 +20,13 @@ import { pushUndo } from './lib/undo'
 export default function App() {
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [renaming, setRenaming] = useState(false)
-  // Escape unmounts the focused rename input, and unmounting a focused input
-  // fires a native blur — which would otherwise run the same commit path as a
-  // real blur and rename the project. This flag lets Escape discard instead.
-  const cancelingRename = useRef(false)
 
-  const { project } = useOpenProject()
+  const { project, loaded } = useOpenProject()
 
-  function startRenaming() {
-    cancelingRename.current = false
-    setRenaming(true)
-  }
+  const rename = useInlineRename(project?.name ?? '', async (name) => {
+    if (project === undefined) return
+    pushUndo(await renameProject(project.id, name))
+  })
 
   async function archive() {
     if (project === undefined) return
@@ -56,44 +52,24 @@ export default function App() {
             >
               ☰
             </button>
-            {renaming && project !== undefined ? (
+            {rename.renaming && project !== undefined ? (
               <input
-                defaultValue={project.name}
-                autoFocus
+                {...rename.inputProps}
                 aria-label="Project name"
-                onBlur={async (e) => {
-                  setRenaming(false)
-                  if (cancelingRename.current) {
-                    cancelingRename.current = false
-                    return
-                  }
-                  const name = e.target.value.trim()
-                  // A no-op edit should not push an undo step for a write that
-                  // changed nothing — `renameProject` does not check this
-                  // itself, so it is checked here.
-                  if (name === project.name) return
-                  pushUndo(await renameProject(project.id, name))
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') e.currentTarget.blur()
-                  if (e.key === 'Escape') {
-                    cancelingRename.current = true
-                    setRenaming(false)
-                  }
-                }}
                 className="min-h-11 flex-1 bg-transparent text-lg font-semibold tracking-tight text-neutral-900 outline-none dark:text-neutral-100"
               />
             ) : (
               <h1
-                onDoubleClick={startRenaming}
+                onDoubleClick={rename.start}
                 className="flex-1 truncate text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100"
               >
-                {project?.name ?? 'Lane'}
+                {loaded ? (project?.name ?? 'Lane') : ''}
               </h1>
             )}
             <button
               type="button"
-              onClick={startRenaming}
+              onClick={rename.start}
+              disabled={rename.renaming}
               className="min-h-11 px-2 text-sm text-neutral-500 dark:text-neutral-400"
             >
               Rename

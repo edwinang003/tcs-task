@@ -74,4 +74,17 @@ describe('nav', () => {
     expect(resolveProject(projects, { kind: 'project', projectId: 'work' }))
       .toBe(inbox)
   })
+
+  it('trusts the stored id while the read has not answered yet', () => {
+    // `undefined` means "no answer", not "empty" — must not fall back.
+    expect(resolveProject(undefined, { kind: 'project', projectId: 'work' }))
+      .toBe('work')
+  })
+
+  it('differs from undefined once the list has answered and is empty', () => {
+    // An empty array is a real answer: nothing exists, so fall back to Inbox.
+    // This must differ from the undefined case above — that's the whole point.
+    expect(resolveProject([], { kind: 'project', projectId: 'work' }))
+      .toBe(inbox)
+  })
 })

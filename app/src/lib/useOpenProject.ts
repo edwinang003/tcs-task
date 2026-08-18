@@ -31,11 +31,7 @@ export function useOpenProject(): OpenProject {
   const route = useSyncExternalStore(subscribe, getRoute, getRoute)
   const projects = useLiveQuery(() => listProjects(), [])
 
-  // Until the list arrives, an empty list would read as "your project is gone"
-  // and resolve to Inbox, flashing Inbox on every load. Trust the stored id
-  // until there is something to check it against.
-  const projectId =
-    projects === undefined ? route.projectId : resolveProject(projects, route)
+  const projectId = resolveProject(projects, route)
 
   return {
     projectId,
