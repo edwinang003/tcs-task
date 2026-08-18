@@ -10,15 +10,15 @@
  * the naive version is an afternoon and the trustworthy version is the only
  * one worth shipping.
  */
-import { useRef, useState, useSyncExternalStore } from 'react'
+import { useRef, useState } from 'react'
 import { addTask } from '../lib/repo'
 import { pushUndo } from '../lib/undo'
-import { subscribe, getRoute } from '../lib/nav'
+import { useOpenProject } from '../lib/useOpenProject'
 
 export function QuickAdd() {
   const [title, setTitle] = useState('')
   const input = useRef<HTMLInputElement>(null)
-  const route = useSyncExternalStore(subscribe, getRoute, getRoute)
+  const { projectId } = useOpenProject()
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -27,7 +27,7 @@ export function QuickAdd() {
     // Clear first: the write goes to IndexedDB and the list re-renders from
     // there, so the field should never appear to wait on anything (SPEC §9).
     setTitle('')
-    const { undo } = await addTask(value, route.projectId)
+    const { undo } = await addTask(value, projectId)
     pushUndo(undo)
     input.current?.focus()
   }

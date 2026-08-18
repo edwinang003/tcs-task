@@ -8,10 +8,10 @@
  * Project rename and archive live in the header rather than on these rows, so
  * the drawer stays a place you pass through rather than a control panel.
  */
-import { useState, useSyncExternalStore } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { listProjects, addProject } from '../lib/repo'
-import { subscribe, getRoute, openProject, resolveProject } from '../lib/nav'
+import { useState } from 'react'
+import { addProject } from '../lib/repo'
+import { openProject } from '../lib/nav'
+import { useOpenProject } from '../lib/useOpenProject'
 import { pushUndo } from '../lib/undo'
 
 export function Drawer({
@@ -21,11 +21,8 @@ export function Drawer({
   open: boolean
   onClose: () => void
 }) {
-  const route = useSyncExternalStore(subscribe, getRoute, getRoute)
-  const projects = useLiveQuery(() => listProjects(), [])
+  const { projectId: openId, projects } = useOpenProject()
   const [adding, setAdding] = useState('')
-
-  const openId = resolveProject(projects ?? [], route)
 
   async function add(e: React.FormEvent) {
     e.preventDefault()
