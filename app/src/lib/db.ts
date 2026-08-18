@@ -9,8 +9,11 @@
  * `repo.ts`, and read through `useLiveQuery` on the tables below.
  */
 
-import Dexie, { type EntityTable } from 'dexie'
+import Dexie, { type EntityTable, type Transaction } from 'dexie'
+import { SERVER_OWNED_COLUMNS } from './schema'
 import type { Task, Project, Section, OutboxEntry } from './schema'
+import { activeWorkspace } from './workspace'
+import { clientId } from './device'
 
 /**
  * SPEC §12 item 7: the database name carries no user identity, so a second
@@ -31,6 +34,81 @@ export type LaneDb = Dexie & {
  */
 export const MIN_KEY = Dexie.minKey
 export const MAX_KEY = Dexie.maxKey
+
+const serverOwned = new Set<string>(SERVER_OWNED_COLUMNS)
+
+/** SPEC §4.1: server-owned columns are never pushed by a client. */
+function outboxEntry(table: string, row: { id: string }, stamp: string) {
+  return {
+    table,
+    row_id: row.id,
+    columns: Object.keys(row).filter((c) => !serverOwned.has(c)),
+    status: 'pending' as const,
+    reason: null,
+    created_at: stamp,
+  }
+}
+
+/**
+ * The Inbox project and its two sections, with their outbox entries.
+ *
+ * Called from two places on purpose: `upgrade` for a database P0a left behind,
+ * and `populate` for one created fresh at version 2 — Dexie runs an upgrade
+ * only for a database that already existed, so a first install would otherwise
+ * end up with an outbox and nothing in it.
+ *
+ * SPEC §12.3: the ids come from workspace.ts, which pins them precisely so
+ * that rows created before a server exists line up with what P1 creates. Every
+ * device generates the same ids here, which is harmless — push upserts by row
+ * id, so the second device collapses onto the first.
+ */
+async function seedWorkspace(tx: Transaction): Promise<void> {
+  const { workspaceId, projectId, sectionId, doneSectionId } = activeWorkspace()
+  const stamp = new Date().toISOString()
+  const sync = {
+    workspace_id: workspaceId,
+    updated_at: stamp,
+    deleted_at: null,
+    client_id: clientId(),
+  }
+
+  const project = {
+    id: projectId,
+    name: 'Inbox',
+    color: null,
+    icon: null,
+    position: 'a0',
+    archived_at: null,
+    ...sync,
+  }
+  const sections = [
+    {
+      id: sectionId,
+      project_id: projectId,
+      name: 'Tasks',
+      position: 'a0',
+      is_done_section: false,
+      ...sync,
+    },
+    {
+      id: doneSectionId,
+      project_id: projectId,
+      name: 'Done',
+      position: 'a1',
+      is_done_section: true,
+      ...sync,
+    },
+  ]
+
+  await tx.table('projects').add(project)
+  await tx.table('sections').bulkAdd(sections)
+  // Order is the push order (SPEC §9.2): the project cannot arrive after the
+  // sections that reference it.
+  await tx.table('outbox').bulkAdd([
+    outboxEntry('projects', project, stamp),
+    ...sections.map((sct) => outboxEntry('sections', sct, stamp)),
+  ])
+}
 
 /**
  * Indexes are the local mirror of SPEC §12.2's access paths.
@@ -56,9 +134,23 @@ export function createDb(name: string = DB_NAME, ceiling: 1 | 2 = 2): LaneDb {
         'id, [workspace_id+position], [workspace_id+updated_at], deleted_at',
       sections:
         'id, [workspace_id+project_id], [workspace_id+updated_at], deleted_at',
-      outbox: '++seq, [table+row_id], status',
+      outbox: '++seq, table, [table+row_id], status',
+    }).upgrade(async (tx) => {
+      await seedWorkspace(tx)
+
+      // Tasks typed during P0a were written before an outbox existed. Without
+      // this backfill, P1's first push sends the project and none of the work
+      // inside it (SPEC §9.1: never drop an entry).
+      const stamp = new Date().toISOString()
+      const tasks = await tx.table('tasks').toArray()
+      await tx.table('outbox').bulkAdd(
+        tasks.map((t: { id: string }) => outboxEntry('tasks', t, stamp)),
+      )
     })
   }
+
+  // A database created fresh at v2 never runs an upgrade.
+  db.on('populate', (tx) => seedWorkspace(tx))
 
   return db
 }
