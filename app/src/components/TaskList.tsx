@@ -6,12 +6,15 @@
  * with no manual refresh anywhere.
  */
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useSyncExternalStore } from 'react'
 import { listTasks, setTaskDone, deleteTask } from '../lib/repo'
 import { formatDue, isOverdue } from '../lib/dates'
 import { pushUndo } from '../lib/undo'
+import { subscribe, getRoute } from '../lib/nav'
 
 export function TaskList({ onOpen }: { onOpen: (id: string) => void }) {
-  const tasks = useLiveQuery(() => listTasks(), [])
+  const route = useSyncExternalStore(subscribe, getRoute, getRoute)
+  const tasks = useLiveQuery(() => listTasks(route.projectId), [route.projectId])
 
   if (tasks === undefined) {
     // First read from IndexedDB. Deliberately blank rather than a spinner —
