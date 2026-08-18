@@ -1,5 +1,4 @@
-import { useRef, useState, useSyncExternalStore } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
+import { useRef, useState } from 'react'
 import { InstallButton } from './components/InstallButton'
 import { QuickAdd } from './components/QuickAdd'
 import { TaskList } from './components/TaskList'
@@ -7,8 +6,8 @@ import { UndoToast } from './components/Toast'
 import { TaskSheet } from './components/TaskSheet'
 import { UpdatePrompt } from './components/UpdatePrompt'
 import { Drawer } from './components/Drawer'
-import { listProjects, renameProject, archiveProject } from './lib/repo'
-import { subscribe, getRoute, resolveProject } from './lib/nav'
+import { renameProject, archiveProject } from './lib/repo'
+import { useOpenProject } from './lib/useOpenProject'
 import { pushUndo } from './lib/undo'
 
 /**
@@ -26,10 +25,7 @@ export default function App() {
   // real blur and rename the project. This flag lets Escape discard instead.
   const cancelingRename = useRef(false)
 
-  const route = useSyncExternalStore(subscribe, getRoute, getRoute)
-  const projects = useLiveQuery(() => listProjects(), [])
-  const openId = resolveProject(projects ?? [], route)
-  const project = (projects ?? []).find((p) => p.id === openId)
+  const { project } = useOpenProject()
 
   function startRenaming() {
     cancelingRename.current = false
