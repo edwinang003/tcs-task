@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { InstallButton } from './components/InstallButton'
 import { QuickAdd } from './components/QuickAdd'
 import { TaskList } from './components/TaskList'
 import { UndoToast } from './components/Toast'
+import { TaskSheet } from './components/TaskSheet'
 import { UpdatePrompt } from './components/UpdatePrompt'
 
 /**
@@ -13,6 +15,8 @@ import { UpdatePrompt } from './components/UpdatePrompt'
  * a task genuinely faster than Google Tasks.
  */
 export default function App() {
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null)
+
   return (
     <div className="flex h-full flex-col bg-white text-[15px] dark:bg-ink">
       <UpdatePrompt />
@@ -29,11 +33,20 @@ export default function App() {
       </header>
 
       <main className="flex-1 overflow-y-auto">
-        <TaskList />
+        <TaskList onOpen={setOpenTaskId} />
       </main>
 
       <QuickAdd />
       <UndoToast />
+      {openTaskId !== null && (
+        // Keyed by id so switching tasks remounts with a clean draft rather
+        // than merging two tasks' edits.
+        <TaskSheet
+          key={openTaskId}
+          taskId={openTaskId}
+          onClose={() => setOpenTaskId(null)}
+        />
+      )}
     </div>
   )
 }

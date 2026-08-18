@@ -9,7 +9,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { listTasks, setTaskDone, deleteTask } from '../lib/repo'
 import { pushUndo } from '../lib/undo'
 
-export function TaskList() {
+export function TaskList({ onOpen }: { onOpen: (id: string) => void }) {
   const tasks = useLiveQuery(() => listTasks(), [])
 
   if (tasks === undefined) {
@@ -35,13 +35,20 @@ export function TaskList() {
             key={task.id}
             className="group flex items-center gap-3 rounded-xl px-1 py-1"
           >
-            <label className="flex min-h-11 flex-1 cursor-pointer items-center gap-3">
+            <label className="flex min-h-11 shrink-0 cursor-pointer items-center pl-1 pr-1">
               <input
                 type="checkbox"
                 checked={done}
                 onChange={(e) => void setTaskDone(task.id, e.target.checked).then(pushUndo)}
+                aria-label={`Complete ${task.title}`}
                 className="size-5 shrink-0 accent-accent"
               />
+            </label>
+            <button
+              type="button"
+              onClick={() => onOpen(task.id)}
+              className="min-h-11 flex-1 text-left"
+            >
               <span
                 className={
                   done
@@ -51,7 +58,7 @@ export function TaskList() {
               >
                 {task.title}
               </span>
-            </label>
+            </button>
             <button
               type="button"
               onClick={() => void deleteTask(task.id).then(pushUndo)}
