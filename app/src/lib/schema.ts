@@ -45,6 +45,53 @@ export interface Task extends SyncColumns {
   assignee_id: string | null
 }
 
+/** SPEC §4.1 — `projects`. */
+export interface Project extends SyncColumns {
+  name: string
+  color: string | null
+  icon: string | null
+  /** Fractional index, a string (SPEC §4.2). */
+  position: string
+  /** SPEC §4.4: archiving is the safe default the UI nudges toward. */
+  archived_at: string | null
+}
+
+/** SPEC §4.1 — `sections`. */
+export interface Section extends SyncColumns {
+  project_id: string
+  name: string
+  position: string
+  /**
+   * SPEC §4: checking a task moves it here. The move lands with the sections
+   * UI; this slice only creates the row.
+   */
+  is_done_section: boolean
+}
+
+/**
+ * SPEC §9.1 — one entry per dirty row, not a delta log.
+ *
+ * There is no `op` column on purpose: creates, updates and deletes are all
+ * upserts by row id on the server, and a soft delete is `deleted_at` showing
+ * up in `columns` like any other change.
+ */
+export interface OutboxEntry {
+  /** Dexie auto-increment. The push order (SPEC §9.2). */
+  seq: number
+  table: TableName
+  row_id: string
+  /** The dirty column set, server-owned columns excluded (SPEC §4.1). */
+  columns: string[]
+  /**
+   * SPEC §9.1: "rejectable, not merely retryable". Nothing sets 'parked'
+   * until P1 has a server that can reject — the field exists now because
+   * retrofitting it "means auditing every write path in the app".
+   */
+  status: 'pending' | 'parked'
+  reason: string | null
+  created_at: string
+}
+
 /**
  * Columns a client must never push, because the server owns them.
  * SPEC §4.1: "The push payload whitelist is explicit, and these columns are
@@ -57,4 +104,7 @@ export const SERVER_OWNED_COLUMNS = ['updated_at', 'reminder_sent_at'] as const
  * against an explicit whitelist, so adding a server-owned table later is a
  * one-line change rather than a security review.
  */
-export const PUSHABLE_TABLES = ['tasks'] as const
+export const PUSHABLE_TABLES = ['tasks', 'projects', 'sections'] as const
+
+/** The tables a write can target. `outbox` is deliberately not one. */
+export type TableName = (typeof PUSHABLE_TABLES)[number]
