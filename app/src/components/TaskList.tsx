@@ -7,6 +7,7 @@
  */
 import { useLiveQuery } from 'dexie-react-hooks'
 import { listTasks, setTaskDone, deleteTask } from '../lib/repo'
+import { formatDue, isOverdue } from '../lib/dates'
 import { pushUndo } from '../lib/undo'
 
 export function TaskList({ onOpen }: { onOpen: (id: string) => void }) {
@@ -30,6 +31,9 @@ export function TaskList({ onOpen }: { onOpen: (id: string) => void }) {
     <ul className="mx-auto max-w-2xl px-3 py-2">
       {tasks.map((task) => {
         const done = task.completed_at !== null
+        const due = formatDue(task.due_on, task.due_time)
+        // A completed task is not overdue, however late it was.
+        const overdue = !done && isOverdue(task.due_on, task.due_time)
         return (
           <li
             key={task.id}
@@ -58,6 +62,18 @@ export function TaskList({ onOpen }: { onOpen: (id: string) => void }) {
               >
                 {task.title}
               </span>
+              {due !== null && (
+                <span
+                  className={
+                    'ml-2 whitespace-nowrap text-xs ' +
+                    (overdue
+                      ? 'text-red-600 dark:text-red-400'
+                      : 'text-neutral-400 dark:text-neutral-500')
+                  }
+                >
+                  {due}
+                </span>
+              )}
             </button>
             <button
               type="button"
