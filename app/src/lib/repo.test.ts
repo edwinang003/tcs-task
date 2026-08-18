@@ -60,7 +60,10 @@ describe('repo', () => {
     await db.outbox.clear()
 
     const original = db.outbox.add
-    db.outbox.add = () => Promise.reject(new Error('disk full'))
+    // Dexie hands back its own PromiseExtended; the cast is the stub saying it
+    // only needs to reject.
+    db.outbox.add = (() =>
+      Promise.reject(new Error('disk full'))) as unknown as typeof db.outbox.add
     try {
       await expect(renameTask(id, 'renamed')).rejects.toThrow('disk full')
     } finally {

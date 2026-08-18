@@ -411,7 +411,7 @@ export function createDb(name: string = DB_NAME, ceiling: 1 | 2 = 2): LaneDb {
       projects: 'id, [workspace_id+position], [workspace_id+updated_at], deleted_at',
       sections:
         'id, [workspace_id+project_id], [workspace_id+updated_at], deleted_at',
-      outbox: '++seq, [table+row_id], status',
+      outbox: '++seq, table, [table+row_id], status',
     })
   }
 
@@ -701,7 +701,10 @@ describe('repo', () => {
     await db.outbox.clear()
 
     const original = db.outbox.add
-    db.outbox.add = () => Promise.reject(new Error('disk full'))
+    // Dexie hands back its own PromiseExtended; the cast is the stub saying it
+    // only needs to reject.
+    db.outbox.add = (() =>
+      Promise.reject(new Error('disk full'))) as unknown as typeof db.outbox.add
     try {
       await expect(renameTask(id, 'renamed')).rejects.toThrow('disk full')
     } finally {
@@ -1108,7 +1111,7 @@ Chain `.upgrade()` onto the `version(2)` block in `createDb`, and register
 `populate` just before the `return`:
 
 ```ts
-      outbox: '++seq, [table+row_id], status',
+      outbox: '++seq, table, [table+row_id], status',
     }).upgrade(async (tx) => {
       await seedWorkspace(tx)
 
