@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -49,4 +49,12 @@ export default defineConfig({
       },
     }),
   ],
+
+  // Vitest. The `lib/` tests open a real Dexie database against
+  // fake-indexeddb, so they need the setup file below (SPEC §9.9's
+  // "testable" applies to the local half too).
+  test: {
+    environment: 'node',
+    setupFiles: ['./src/test/setup.ts'],
+  },
 })
