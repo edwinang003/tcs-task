@@ -12,6 +12,7 @@
  */
 import { useRef, useState } from 'react'
 import { addTask } from '../lib/repo'
+import { pushUndo } from '../lib/undo'
 
 export function QuickAdd() {
   const [title, setTitle] = useState('')
@@ -24,7 +25,8 @@ export function QuickAdd() {
     // Clear first: the write goes to IndexedDB and the list re-renders from
     // there, so the field should never appear to wait on anything (SPEC §9).
     setTitle('')
-    await addTask(value)
+    const { undo } = await addTask(value)
+    pushUndo(undo)
     input.current?.focus()
   }
 
