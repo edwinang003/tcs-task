@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { db } from './db'
+import { db } from '../db'
 import {
   addTask, setTaskDone, renameTask, deleteTask, listTasks,
   getTask, setTaskNotes, setTaskDue, setTaskPriority,
-} from './repo'
-import { activeWorkspace } from './workspace'
+} from './index'
+import { activeWorkspace } from '../workspace'
 
 async function entriesFor(rowId: string) {
   return db.outbox.where('[table+row_id]').equals(['tasks', rowId]).toArray()
