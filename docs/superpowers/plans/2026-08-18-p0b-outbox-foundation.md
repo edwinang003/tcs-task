@@ -672,12 +672,15 @@ describe('repo', () => {
     const id = await addTask('buy milk')
     await db.outbox.clear()
 
+    // `client_id` rides along on every write and is pushed with it — SPEC §9
+    // has the server store which device wrote last so the others can skip
+    // echoing their own changes. Only §4.1's server-owned columns are absent.
     await renameTask(id, 'buy oat milk')
-    expect((await entriesFor(id))[0].columns).toEqual(['title'])
+    expect((await entriesFor(id))[0].columns).toEqual(['title', 'client_id'])
 
     await db.outbox.clear()
     await setTaskDone(id, true)
-    expect((await entriesFor(id))[0].columns).toEqual(['completed_at'])
+    expect((await entriesFor(id))[0].columns).toEqual(['completed_at', 'client_id'])
   })
 
   it('tombstones rather than removing, and enqueues deleted_at', async () => {
@@ -687,7 +690,7 @@ describe('repo', () => {
     await deleteTask(id)
 
     expect(await db.tasks.get(id)).toBeDefined()
-    expect((await entriesFor(id))[0].columns).toEqual(['deleted_at'])
+    expect((await entriesFor(id))[0].columns).toEqual(['deleted_at', 'client_id'])
     expect(await listTasks()).toHaveLength(0)
   })
 

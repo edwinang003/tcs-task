@@ -12,11 +12,12 @@
  */
 
 import { db, MIN_KEY, MAX_KEY } from './db'
+import { appendOutbox } from './outbox'
 import { clientId } from './device'
 import { uuidv7 } from './ids'
 import { generateKeyBetween } from './fractional-indexing'
 import { activeWorkspace } from './workspace'
-import type { Task } from './schema'
+import type { Task, TableName } from './schema'
 
 /**
  * SPEC §9.4: the client's wall clock never resolves a conflict — the server
@@ -25,6 +26,41 @@ import type { Task } from './schema'
  */
 function now(): string {
   return new Date().toISOString()
+}
+
+/**
+ * The two write primitives. Everything below goes through them, so a row
+ * cannot be written without its outbox entry — SPEC §9.1 calls that atomicity
+ * "the single most important detail in the sync engine".
+ *
+ * P1's pull deliberately does NOT use these: rows arriving from the server
+ * must not be enqueued straight back at it.
+ */
+async function create<T extends { id: string }>(
+  table: TableName,
+  row: T,
+): Promise<void> {
+  await db.transaction('rw', db.table(table), db.outbox, async () => {
+    await db.table(table).add(row)
+    await appendOutbox(table, row.id, Object.keys(row))
+  })
+}
+
+async function write(
+  table: TableName,
+  id: string,
+  changes: Record<string, unknown>,
+): Promise<void> {
+  // SPEC §9.4: this is the provisional local value; the server stamps the
+  // real `updated_at` on push.
+  const stamped = { ...changes, updated_at: now(), client_id: clientId() }
+  await db.transaction('rw', db.table(table), db.outbox, async () => {
+    const updated = await db.table(table).update(id, stamped)
+    // A row that is not there cannot be dirty. Enqueueing anyway would push a
+    // phantom id at the server.
+    if (updated === 0) return
+    await appendOutbox(table, id, Object.keys(stamped))
+  })
 }
 
 /** Rows the list view shows: not deleted, in this workspace, in order. */
@@ -46,82 +82,57 @@ export async function addTask(title: string): Promise<string> {
   const { workspaceId, projectId, sectionId } = activeWorkspace()
   const id = uuidv7()
 
-  await db.transaction('rw', db.tasks, async () => {
-    // New tasks append to the end of the list.
-    const last = await db.tasks
-      .where('[workspace_id+position]')
-      .between([workspaceId, MIN_KEY], [workspaceId, MAX_KEY])
-      .last()
+  // New tasks append to the end of the list.
+  const last = await db.tasks
+    .where('[workspace_id+position]')
+    .between([workspaceId, MIN_KEY], [workspaceId, MAX_KEY])
+    .last()
 
-    const row: Task = {
-      id,
-      workspace_id: workspaceId,
-      project_id: projectId,
-      section_id: sectionId,
-      title: trimmed,
-      notes: null,
-      due_on: null,
-      due_time: null,
-      reminder_at: null,
-      reminder_sent_at: null,
-      priority: 0,
-      completed_at: null,
-      recurrence_rule: null,
-      recurrence_parent_id: null,
-      position: generateKeyBetween(last?.position ?? null, null),
-      created_by: null,
-      assignee_id: null,
-      updated_at: now(),
-      deleted_at: null,
-      client_id: clientId(),
-    }
+  const row: Task = {
+    id,
+    workspace_id: workspaceId,
+    project_id: projectId,
+    section_id: sectionId,
+    title: trimmed,
+    notes: null,
+    due_on: null,
+    due_time: null,
+    reminder_at: null,
+    reminder_sent_at: null,
+    priority: 0,
+    completed_at: null,
+    recurrence_rule: null,
+    recurrence_parent_id: null,
+    position: generateKeyBetween(last?.position ?? null, null),
+    created_by: null,
+    assignee_id: null,
+    updated_at: now(),
+    deleted_at: null,
+    client_id: clientId(),
+  }
 
-    await db.tasks.add(row)
-    // P0b: appendOutboxEntry({ table: 'tasks', id, columns: Object.keys(row) })
-  })
-
+  await create('tasks', row)
   return id
 }
 
-export async function setTaskDone(id: string, done: boolean): Promise<void> {
-  await db.transaction('rw', db.tasks, async () => {
-    await db.tasks.update(id, {
-      // SPEC §4: `completed_at` and `section_id` are always written together,
-      // because checking a task moves it to the done section and dragging it
-      // there checks it. P0a has no done section yet, so only the timestamp
-      // moves — the pairing arrives with sections in P0b.
-      completed_at: done ? now() : null,
-      updated_at: now(),
-      client_id: clientId(),
-    })
-    // P0b: appendOutboxEntry({ table: 'tasks', id, columns: ['completed_at'] })
-  })
+export function setTaskDone(id: string, done: boolean): Promise<void> {
+  // SPEC §4: `completed_at` and `section_id` are always written together,
+  // because checking a task moves it to the done section and dragging it
+  // there checks it. The done section row now exists; nothing moves into it
+  // until the sections UI does, so only the timestamp moves.
+  return write('tasks', id, { completed_at: done ? now() : null })
 }
 
-export async function renameTask(id: string, title: string): Promise<void> {
+export function renameTask(id: string, title: string): Promise<void> {
   const trimmed = title.trim()
-  if (!trimmed) return
-  await db.transaction('rw', db.tasks, async () => {
-    await db.tasks.update(id, {
-      title: trimmed,
-      updated_at: now(),
-      client_id: clientId(),
-    })
-    // P0b: appendOutboxEntry({ table: 'tasks', id, columns: ['title'] })
-  })
+  if (!trimmed) return Promise.resolve()
+  return write('tasks', id, { title: trimmed })
 }
 
 /**
  * SPEC §9: deletions are soft. The row stays as a tombstone so that a device
  * offline for a week learns about the deletion instead of resurrecting it.
  */
-export async function deleteTask(id: string): Promise<void> {
-  await db.transaction('rw', db.tasks, async () => {
-    await db.tasks.update(id, {
-      deleted_at: now(),
-      updated_at: now(),
-      client_id: clientId(),
-    })
-    // P0b: appendOutboxEntry({ table: 'tasks', id, columns: ['deleted_at'] })
-  })
+export function deleteTask(id: string): Promise<void> {
+  return write('tasks', id, { deleted_at: now() })
 }
