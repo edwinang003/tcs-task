@@ -1,0 +1,17 @@
+# Cloudflare Pages headers.
+#
+# The service worker and the app shell must never be cached by the CDN or the
+# browser for long: they are how the app learns a new version exists (SPEC
+# §9.8). Hashed assets are immutable and can be cached forever.
+
+/sw.js
+  Cache-Control: no-cache
+
+/index.html
+  Cache-Control: no-cache
+
+/manifest.webmanifest
+  Cache-Control: no-cache
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
