@@ -85,6 +85,21 @@ describe('groupBySection', () => {
     expect(groups[0].tasks.map((t) => t.id)).toEqual(['orphan'])
   })
 
+  // Regression guard: catches a fallback computed from raw `sections[0]`
+  // instead of `ordered[0]`. With done listed first in the input, taking
+  // sections[0] directly (skipping the done-last reorder) would misfile
+  // this orphan into the done section instead of the open one.
+  it('falls back to the open section, not raw sections[0], when done is listed first', () => {
+    const groups = groupBySection(
+      [section('done', 'a0', true), section('todo', 'a1')],
+      [task('orphan', 'deleted-elsewhere', 'a0')],
+    )
+    const doneGroup = groups.find((g) => g.section.id === 'done')!
+    const todoGroup = groups.find((g) => g.section.id === 'todo')!
+    expect(todoGroup.tasks.map((t) => t.id)).toEqual(['orphan'])
+    expect(doneGroup.tasks).toEqual([])
+  })
+
   it('drops every task rather than crashing when a project has no sections', () => {
     expect(groupBySection([], [task('one', 'gone', 'a0')])).toEqual([])
   })
