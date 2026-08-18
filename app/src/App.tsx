@@ -1,6 +1,7 @@
 import { InstallButton } from './components/InstallButton'
 import { QuickAdd } from './components/QuickAdd'
 import { TaskList } from './components/TaskList'
+import { UndoToast } from './components/Toast'
 import { UpdatePrompt } from './components/UpdatePrompt'
 
 /**
@@ -32,6 +33,7 @@ export default function App() {
       </main>
 
       <QuickAdd />
+      <UndoToast />
     </div>
   )
 }
