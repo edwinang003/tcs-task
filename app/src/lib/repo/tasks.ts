@@ -1,44 +1,42 @@
 import { db, MIN_KEY, MAX_KEY } from '../db'
 import { uuidv7 } from '../ids'
 import { clientId } from '../device'
-import { generateKeyBetween } from '../fractional-indexing'
 import { activeWorkspace } from '../workspace'
 import { create, write, now } from './write'
-import type { Task } from '../schema'
+import { doneSectionOf, firstOpenSectionOf, getSection } from './sections'
+import { appendPositionIn } from './positions'
+import type { Task, Section } from '../schema'
 import type { UndoStep } from '../undo'
 
-/** Rows the list view shows: not deleted, in this workspace, in order. */
-export async function listTasks(): Promise<Task[]> {
+/** Rows the list view shows: not deleted, in this project, in order. */
+export async function listTasks(projectId: string): Promise<Task[]> {
   const { workspaceId } = activeWorkspace()
   const rows = await db.tasks
     .where('[workspace_id+position]')
     .between([workspaceId, MIN_KEY], [workspaceId, MAX_KEY])
     .toArray()
-  // SPEC §9: deletions are soft, so tombstones live in the table and are
-  // filtered by the reader — never by the query that syncs them (§12.1 trap 1).
-  return rows.filter((t) => t.deleted_at === null)
+  // Filtered rather than indexed by project: slice 4's Today and Upcoming span
+  // every project and want this same workspace-wide read, so a second index
+  // would be a second thing to keep correct for no measured gain.
+  return rows.filter((t) => t.deleted_at === null && t.project_id === projectId)
 }
 
 export async function addTask(
   title: string,
+  projectId: string,
 ): Promise<{ id: string; undo: UndoStep }> {
   const trimmed = title.trim()
   if (!trimmed) throw new Error('refusing to create a task with no title')
 
-  const { workspaceId, projectId, sectionId } = activeWorkspace()
+  const { workspaceId } = activeWorkspace()
+  const section = await firstOpenSectionOf(projectId)
   const id = uuidv7()
-
-  // New tasks append to the end of the list.
-  const last = await db.tasks
-    .where('[workspace_id+position]')
-    .between([workspaceId, MIN_KEY], [workspaceId, MAX_KEY])
-    .last()
 
   const row: Task = {
     id,
     workspace_id: workspaceId,
     project_id: projectId,
-    section_id: sectionId,
+    section_id: section.id,
     title: trimmed,
     notes: null,
     due_on: null,
@@ -49,7 +47,7 @@ export async function addTask(
     completed_at: null,
     recurrence_rule: null,
     recurrence_parent_id: null,
-    position: generateKeyBetween(last?.position ?? null, null),
+    position: await appendPositionIn(section.id),
     created_by: null,
     assignee_id: null,
     updated_at: now(),
@@ -60,17 +58,88 @@ export async function addTask(
   return { id, undo: await create('tasks', row, 'Task added') }
 }
 
-export function setTaskDone(id: string, done: boolean): Promise<UndoStep | null> {
-  // SPEC §4: `completed_at` and `section_id` are always written together,
-  // because checking a task moves it to the done section and dragging it
-  // there checks it. The done section row now exists; nothing moves into it
-  // until the sections UI does, so only the timestamp moves.
+/**
+ * The §4 binding, in one place. Nothing else writes these three columns.
+ *
+ * SPEC §4: "checking a task's checkbox moves it into that section, and
+ * dragging a task into that section checks its checkbox. `completed_at` and
+ * `section_id` are always written together, never independently." Both public
+ * entry points below route through here, so the two halves cannot disagree —
+ * and the drag slice adds a third caller rather than a fourth copy of the rule.
+ */
+async function moveTaskTo(
+  task: Task,
+  target: Section,
+  label: string,
+  toast: boolean,
+  extra: Record<string, unknown> = {},
+): Promise<UndoStep | null> {
   return write(
     'tasks',
-    id,
-    { completed_at: done ? now() : null },
-    done ? 'Task completed' : 'Task reopened',
+    task.id,
+    {
+      ...extra,
+      // Landing in the done section completes the task; leaving it reopens it.
+      // An existing timestamp is kept, so P2's completed log reads the moment
+      // the work was finished rather than the last time the row was touched.
+      completed_at: target.is_done_section ? (task.completed_at ?? now()) : null,
+      section_id: target.id,
+      position: await appendPositionIn(target.id),
+    },
+    label,
+    toast,
   )
+}
+
+/**
+ * A toast, because this is the one completion path that takes its result off
+ * the screen — the task leaves the section you were looking at. Reopening does
+ * not: the task appears in the first open section, in view.
+ */
+export async function setTaskDone(
+  id: string,
+  done: boolean,
+): Promise<UndoStep | null> {
+  const task = await getTask(id)
+  if (task === undefined) return null
+  const target = done
+    ? await doneSectionOf(task.project_id)
+    : await firstOpenSectionOf(task.project_id)
+  return moveTaskTo(
+    task,
+    target,
+    done ? 'Task completed' : 'Task reopened',
+    done,
+  )
+}
+
+/** The sheet's Section picker — the non-drag half of §4's binding. */
+export async function setTaskSection(
+  id: string,
+  sectionId: string,
+): Promise<UndoStep | null> {
+  const task = await getTask(id)
+  const target = await getSection(sectionId)
+  if (task === undefined || target === undefined) return null
+  return moveTaskTo(task, target, 'Task moved', target.is_done_section)
+}
+
+/**
+ * A `section_id` from the old project would orphan the row, so the task lands
+ * in the target project's done section if it was complete and its first open
+ * section otherwise — which keeps §4's rule true across the move.
+ */
+export async function setTaskProject(
+  id: string,
+  projectId: string,
+): Promise<UndoStep | null> {
+  const task = await getTask(id)
+  if (task === undefined) return null
+  const target =
+    task.completed_at !== null
+      ? await doneSectionOf(projectId)
+      : await firstOpenSectionOf(projectId)
+  return moveTaskTo(task, target, 'Task moved', false, { project_id: projectId })
 }
 
 export function renameTask(id: string, title: string): Promise<UndoStep | null> {
