@@ -115,9 +115,13 @@ export function TaskSheet({
           <div className="min-h-64" />
         ) : (
           <>
+            {/* Deliberately not autoFocused. At 390x844 the panel starts at
+                y=434 and an Android keyboard's top edge lands near y=464, so
+                focusing the title on open buries the whole sheet behind the
+                keyboard — when the gesture was usually "open this to look at
+                it". The title is one tap away. */}
             <input
               value={draft.title}
-              autoFocus
               onChange={(e) => {
                 const title = e.target.value
                 setDraft({ ...draft, title })

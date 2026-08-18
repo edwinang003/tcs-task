@@ -3,12 +3,13 @@
 The client. See [`../docs/SPEC.md`](../docs/SPEC.md) for the design; section
 numbers in code comments refer to it.
 
-Currently at **P0b slice 1 — the outbox foundation** (SPEC §13). The app is
-still P0a's: one list, add a task, complete a task, persisted in IndexedDB,
-installable, and fully functional with no network. Underneath, `projects` and
-`sections` are real tables and every write records an outbox entry in the same
-transaction — but there is no transport draining it yet, and no UI for any of
-it. That is P0b's remaining slices and P1.
+Currently at **P0b slice 2 — task CRUD and undo** (SPEC §13). One list, but a
+task is now a real thing: add it, complete it, rename it, give it notes, a due
+date and time, and a priority, then undo any of that. Everything is persisted
+in IndexedDB, installable, and fully functional with no network. Underneath,
+`projects` and `sections` are real tables and every write records an outbox
+entry in the same transaction — but there is no transport draining it yet, and
+no UI for projects or sections. That is P0b's remaining slices and P1.
 
 P0a exists to answer three questions before the other 90% is built:
 
@@ -23,7 +24,7 @@ npm install
 npm run dev      # vite dev server; the service worker is enabled here too
 npm run build    # tsc -b && vite build  → dist/
 npm run preview  # serve dist/ locally
-npm test         # vitest — the vendored fractional indexing and id property tests
+npm test         # vitest — lib unit tests (ids, order keys, db, outbox, repo, undo, dates)
 npm run lint     # oxlint
 npm run icons    # regenerate public/icon-*.png
 ```
@@ -66,7 +67,11 @@ src/
     db.ts                   the ONLY file importing Dexie (SPEC §11.3 rule 1)
     outbox.ts               the coalescing append (SPEC §9.1)
     repo.ts                 the ONLY write path (SPEC §13 P0b constraint)
+    undo.ts                 the single-step undo store (SPEC §4.5)
+    dates.ts                due-date formatting and the overdue predicate
   components/               UI
+    TaskSheet.tsx           the task editor, auto-saving
+    Toast.tsx               the undo offer and Ctrl+Z
   sw.ts                     hand-written service worker (SPEC §11.2)
 ```
 
@@ -79,3 +84,7 @@ Two conventions worth keeping, both from SPEC §11.3:
   `repo.ts` writes except `create()` and `write()`, which each span the data
   table and the outbox in one transaction. P1 adds a transport that drains the
   outbox; it does not touch these call sites.
+
+Every mutation in `repo.ts` returns the `UndoStep` that reverses it, and the
+component that called it pushes that step. Undo is an ordinary new mutation —
+it never rewinds the outbox (SPEC §4.5).
