@@ -11,3 +11,5 @@
  * going through a named mutation.
  */
 export * from './tasks'
+export * from './projects'
+export * from './sections'
