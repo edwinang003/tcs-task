@@ -1,6 +1,6 @@
 # Lane — Draft Specification
 
-> **Status:** Draft v0.6 · 2026-08-18 — reviewed, believed build-ready
+> **Status:** Draft v0.7 · 2026-08-18 — reviewed, believed build-ready
 > **Working name:** "Lane" (placeholder — a lane is both a list and a board column)
 > **Author:** drafted with Claude Code, pending review by Edwin
 
@@ -8,7 +8,21 @@ A personal task manager that sits between Google Tasks and Trello: the capture
 speed and low ceremony of Tasks, the spatial structure of Trello, and nothing
 else. Installable as a PWA on **Android phone, Android tablet, and MacBook**.
 Single user at launch, with the data model and authorization built so that
-adding teammates later is additive rather than a rewrite.
+adding teammates later — and turning it into a multi-tenant SaaS after that —
+is additive rather than a rewrite (§12.3).
+
+### Changes since v0.6 — fourth pass: dependencies and the SaaS future
+
+Two constraints arrived after v0.6 and both cut against parts of §11 and §12:
+**minimise dependency churn**, and **do not paint the SaaS future into a
+corner**. Neither changes the architecture — which is the point — but both
+change details that are cheap now and expensive later.
+
+- **The sync boundary is now stated: two RPCs, never direct table access** (§9.11). It was left implicit, and §9.8 already assumed a server that could return `426` — which raw PostgREST table access cannot. This is the single chokepoint where quota, rate limiting, audit and version negotiation live if they are ever needed.
+- **Pull is paginated from day one** (§9.11). At personal scale it never matters; the §9.7 full re-sync on a stale cursor is what makes it matter later, and retrofitting pagination means changing every client that ever shipped.
+- **The outbox can now be told "no" permanently** (§9.1, §9.11). It previously assumed every push failure was transient. Over-quota, revoked membership and suspended workspace are not transient, and retrying them forever is as wrong as dropping them.
+- **Dependency policy is written down** (§11.3). React stays. React Router does not — v5→v6 and v6→v7 rewrote its surface twice, which is the worst churn record in the stack for five routes' worth of value.
+- **§12.3 extends §12's eight team things with six SaaS things**, and — more importantly — says which SaaS concerns stay non-goals, so this section doesn't become a licence to build a billing system for one user.
 
 ### Changes since v0.5 — third review pass
 
@@ -78,6 +92,7 @@ materially.
 | A5 | You'd rather run managed infrastructure than self-host. | Self-hosting is viable; see §11 alternatives. |
 | A6 | "Team later" means a handful of people in shared projects, not org-wide with permissions matrices. | Real multi-tenancy needs more up-front modelling. |
 | A7 | No iPad or iPhone in scope. | If either returns, §8 and §10 need rework — Apple platforms are the constrained case. |
+| A8 | A multi-tenant SaaS is plausible later — not planned, but likely enough that the parts which are expensive to retrofit get built for it now (§12.3). | If it is genuinely never happening, everything §12.3 asks for is still cheap and §9.11 is still the right shape. Nothing is wasted. |
 
 ---
 
@@ -450,17 +465,18 @@ sync loop reconciles IndexedDB with Postgres.
       ▲                                                   │
       │  apply remote changes                             │ push
       │                                                   ▼
- sync engine ◄─ pull: GET /changes?workspace=<id>&since=<cursor> ─ Postgres
+ sync engine ◄──── pull: sync_pull(workspace, cursor, limit) ────── Postgres
       ▲                                                   │
       └───────── realtime invalidation (websocket) ◄──────┘
 ```
 
 **Pull.** Client keeps a `last_pulled_at` cursor. It asks for every row in the
 workspace changed after that cursor, tombstones included, and applies them
-locally.
+locally — a page at a time, advancing the stored cursor only once the last page
+lands (§9.11).
 
-**Push.** Dirty rows go up in one batch. The server stamps `updated_at` and
-returns the new cursor.
+**Push.** Dirty rows go up in one batch. The server stamps `updated_at`,
+returns the new cursor, and answers with a verdict per entry (§9.11).
 
 **Conflicts.** Last-write-wins, resolved per field rather than per row, so
 editing a task's due date on the phone while editing its notes on the laptop
@@ -505,6 +521,7 @@ engine.
 - **Coalesced per row, keyed by dirty column.** Editing one task's title twelve times offline is one push carrying the final value, not twelve. An entry stores the row id and the **set of dirty column names** — not a delta log, and not the whole row. The dirty set is what makes per-field merge possible (§9); a coalesced "current row values" entry would throw away exactly the information the server needs, and quietly turn per-field LWW back into whole-row clobbering.
 - **Idempotent.** Pushing the same entry twice must be harmless — the server upserts by row id, so a retry after an ambiguous network failure is safe.
 - **Durable under failure.** On success, clear the entries; on failure, exponential backoff and keep them. Never drop an entry because a push failed.
+- **Rejectable, not merely retryable.** Some failures never resolve: the workspace is over a plan limit, membership was revoked, the row breaks a server-side rule (§12.3). Retrying those forever is wrong and so is silently dropping them. The push response carries a **per-entry verdict** — accepted, retry, or rejected-with-reason — and a rejected entry is parked, surfaced to the user with its reason, and never retried automatically. This costs one field in a response shape today; retrofitting it into an outbox that assumes all failures are transient means auditing every write path in the app (§9.11).
 - **Visible but not blocking.** The UI never waits on the outbox, but a subtle "3 pending" indicator earns trust — especially in the first weeks when you don't yet believe the sync works.
 
 ### 9.2 Push in referential order
@@ -614,6 +631,60 @@ It costs an afternoon, it is the backup story, it is the "I want to leave"
 story, and it is the thing that makes a sync bug an inconvenience rather than a
 catastrophe. Import of that same file can wait.
 
+### 9.11 The sync boundary is two endpoints, not table access
+
+The spec has been describing pull and push as if they were HTTP endpoints
+without ever saying they must be. Supabase makes direct table access the path of
+least resistance — `supabase.from('tasks').select()` with RLS doing the
+authorization — and for a single user that genuinely works. It is still the
+wrong shape, and §9.8 already proved it: a protocol version that returns
+`426 Upgrade Required` needs a server that can *decide* something, which raw
+PostgREST table access cannot.
+
+**Rule: the client's sync engine calls exactly two server functions, and no
+component anywhere calls a Supabase table directly.**
+
+```
+sync_pull(workspace_id, since_cursor, protocol_version, limit)
+  → { rows, next_cursor, has_more, server_time }
+sync_push(workspace_id, protocol_version, entries[])
+  → { cursor, server_time, results: [{ entry_id, verdict, reason? }] }
+```
+
+Implement them as Postgres functions to start with — they are a `select … where
+updated_at > cursor` and a set of column-scoped upserts, and RLS still enforces
+the tenancy underneath, so this is not extra security machinery. It is a seam.
+
+Three things fall out of it, each cheap now and unpleasant later:
+
+**1. Pull is paginated from day one.** `limit` and `has_more` in the signature
+above, and a client loop that pulls until `has_more` is false before advancing
+its stored cursor. At personal scale this never fires — but §9.7 mandates a
+**full re-sync** whenever the cursor is older than the 90-day tombstone purge,
+and a full re-sync of a busy workspace is exactly the response that falls over.
+Pagination added later has to be added to every client version that ever
+shipped, and a PWA cannot force an update (§9.8).
+
+**2. Push answers per entry, not per batch.** The `results` array is what makes
+§9.1's rejection verdict possible. A batch-level "ok / not ok" cannot say *this
+one task was refused and the other eleven were fine*, and that is precisely the
+answer a quota or a revoked membership produces (§12.3).
+
+**3. Some tables are pulled but never pushed.** `push_subscriptions` is already
+excluded from sync entirely (§4.1), and §4.1 already forbids clients from
+pushing server-owned *columns*. The missing category is a server-owned **table**
+— plan, entitlements, limits, anything the server asserts and the client only
+reads. There are none today. The push handler should nonetheless validate its
+entries against an explicit table whitelist rather than accepting whatever
+arrives, so that adding the first such table is a one-line change instead of a
+security review.
+
+**What this does not mean.** No REST API design exercise, no versioned URL
+scheme, no gateway. Two functions, called from one client module (§11.3). The
+entire value is that quota checks, rate limiting, audit and version negotiation
+have somewhere obvious to go if they are ever needed — and if they never are,
+this cost about twenty lines more than the direct-table version.
+
 ---
 
 ## 10. Reminders
@@ -697,14 +768,24 @@ Dart rewrite.
 | Layer | Choice | Why this one |
 |---|---|---|
 | UI | React + TypeScript + Vite | Boring, fast, huge ecosystem for the pieces below |
-| PWA shell | `vite-plugin-pwa` (Workbox) | Manifest + service worker + update flow with little config |
+| Routing | Hand-rolled over the History API (~60 lines), or `wouter` | Five routes plus notification deep links. React Router rewrote its surface at v5→v6 and again at v6→v7 — the worst churn record in this stack, bought for nothing at this size (§11.3) |
+| PWA shell | `vite-plugin-pwa` in **`injectManifest`** mode | You write the service worker — it hosts the §10 push and `notificationclick` handlers regardless — and the plugin's only job is generating the precache file list |
 | Styling | Tailwind CSS | Fast iteration on a UI that's mostly density and spacing |
-| Drag & drop | `dnd-kit` | Real touch support, accessible, maintained |
+| Drag & drop | `dnd-kit` | Real touch support, accessible, purpose-built rather than a wrapper. Verify its current release cadence at build time — a large rewrite has been in progress |
 | Local store | Dexie (IndexedDB) + `dexie-react-hooks` | Live queries mean the UI re-renders from the local DB automatically; this is what makes the "never wait for the network" rule cheap |
-| Ordering | `fractional-indexing` | §4.2 |
-| Backend | Supabase — Postgres + Auth + Row Level Security + Realtime | RLS is the reason single→team is a policy change instead of a rewrite (§12) |
+| Ordering | `fractional-indexing`, **vendored** | ~100 lines, MIT, effectively frozen — and §9.9 already property-tests it. A vendored copy under your own tests is strictly more robust than a package you upgrade (§4.2) |
+| Dates | `Intl` + a ~40-line module | The only real operation is `due_on` + `due_time` + `workspaces.timezone` → instant (§4.1). `Intl.DateTimeFormat` supplies the zone data natively |
+| Quick-add parsing | `chrono-node` — P2 only | Returns match spans, which is what makes §5.1's visible, reversible parsing implementable at all |
+| Backend | Supabase — Postgres + Auth + Row Level Security + Realtime | RLS is the reason single→team→SaaS is a policy change instead of a rewrite (§12) |
+| Sync transport | Two Postgres functions, `sync_pull` / `sync_push` | §9.11 |
 | Reminders | `pg_cron` + Edge Function + `web-push` (VAPID) | §10 |
 | Hosting | Cloudflare Pages or Vercel (static) + Supabase managed | Free tier covers single-user use comfortably |
+
+Runtime dependencies through P1, in full: `react`, `react-dom`, `dexie`,
+`dexie-react-hooks`, `@dnd-kit/*`, `@supabase/supabase-js`, `tailwindcss`.
+`chrono-node` joins at P2. Everything else above is either code you own or a
+build-time tool, where a breaking change costs an afternoon rather than a
+working app.
 
 **Sync is hand-rolled**, roughly 300–400 lines against the design in §9. That's
 deliberate: small enough to fully understand and debug, and it avoids betting
@@ -715,9 +796,64 @@ the project on a sync framework's roadmap.
 **InstantDB** trade lock-in for less work; **self-hosting** Supabase or a small
 Fastify + SQLite service is viable if you'd rather own the box.
 
+### 11.3 Dependency policy
+
+A personal tool that has to survive years of use fails from dependency churn
+long before it fails from missing features. The stack above is chosen against
+that, and the rules below are what keep it that way as it grows.
+
+**The largest anti-churn decision is already made**, and it is §11.2's last
+paragraph: sync is hand-rolled. A sync framework is the one dependency that
+could not be survived — it sits under every read and write, so abandonment or a
+breaking rewrite means a data migration rather than a refactor. 350 lines you
+own is a better trade permanently.
+
+**The PWA choice is also a robustness decision, not only a cost one.** §11.1
+argued it on effort. The stronger argument is that native Android *mandates*
+churn — annual `targetSdk` bumps to remain in the Play Store, Gradle and AGP
+upgrades, certificate renewals — while service workers, IndexedDB and Web Push
+have been backwards-compatible for a decade. Code written against them in 2019
+still runs untouched.
+
+Four rules:
+
+1. **Every risky dependency is imported in exactly one file.** This matters more
+   than the dependency count. Supabase behind a single `syncClient.ts` (§9.11
+   makes this nearly free — two function calls), `dnd-kit` behind a single
+   `<DraggableList>`, Dexie behind the repository layer that §13's P0b
+   constraint already mandates. Swapping any of them then costs a day in one
+   file instead of an archaeology expedition.
+2. **Prefer ~40 lines you own to a package, when it is genuinely ~40 lines.**
+   This is why `date-fns` is out, `fractional-indexing` is vendored, and the
+   router is hand-rolled. It is emphatically *not* a licence to reimplement
+   Dexie or `dnd-kit` — those solve problems that are hard, not verbose.
+3. **Lockfile committed, versions pinned exactly, nothing auto-merged.**
+   Upgrade deliberately, in batches, when you choose to. Six dependencies on
+   autopilot break more often than twelve on a leash.
+4. **Isolate the framework from the sync engine.** §9.9 already requires
+   reconciliation to be a pure function with no IndexedDB, no fetch and no
+   clock. Hold that line specifically because React's effect semantics —
+   StrictMode double-invocation, concurrent re-runs — are a real hazard for
+   code holding subscriptions, timers and a debounced flush. The engine should
+   touch React at exactly one boundary, and sync logic must never be scattered
+   across `useEffect` bodies in components.
+
+**Known weak points**, stated rather than discovered later:
+
+- **`dnd-kit`** is the least replaceable client dependency, on the riskiest
+  interaction. Rule 1 is the mitigation, along with the fact that list view and
+  the non-drag "Move to…" fallback (§8) mean the app still functions if drag
+  degrades.
+- **Supabase is a platform dependency**, not a package one, and no amount of npm
+  discipline touches it. What protects you is that §11.1's reversibility claim
+  is real — standard Postgres, standard SQL, standard RLS — plus §9.10's export.
+  The exit existing is what makes the dependency acceptable.
+- **Vite and Tailwind take majors roughly annually.** Tailwind v4 was a genuine
+  migration and is the precedent for what the next one costs.
+
 ---
 
-## 12. What to get right on day one for the team future
+## 12. What to get right on day one for the multi-user future
 
 The expensive part of "single user now, team later" is not the invite screen. It
 is that authorization and sync get written assuming one person, and then every
@@ -788,6 +924,61 @@ Not optional, and easy to forget until pulls get slow with no obvious cause:
 - **Reminder dispatch:** a partial index on `(reminder_at)` `where reminder_sent_at is null and completed_at is null and deleted_at is null` — the cron runs this every minute forever, and the partial predicate keeps it tiny.
 - **`workspace_members`:** `(user_id)`, since `my_workspaces()` runs on every policy check.
 
+### 12.3 …and the SaaS future, which needs six more
+
+A8 says a multi-tenant SaaS is plausible rather than planned. The good news is
+that §12's eight items are most of the work — a SaaS *is* the team model with
+strangers in it, and membership-based RLS already assumes strangers. §9.11's
+sync boundary and §9.8's protocol version cover most of the protocol side.
+
+Six things remain, chosen by the same test as §12: near-free now, painful to
+retrofit.
+
+1. **The client must never assume there is one workspace.** The protocol already
+   pulls by workspace (§12, item 5). The easy mistake is on the client — a Dexie
+   schema, a store, or a `useTasks()` hook that quietly hardcodes "the"
+   workspace. Keep an explicit *active workspace id* in local state from day
+   one, key the sync cursor by workspace, and let the local database hold rows
+   for more than one. The UI can still show no workspace switcher at all.
+2. **Workspace creation is one server-side transaction, not a sequence of client
+   inserts.** Today you create your workspace by hand, once, and it is tempting
+   to do it with three `INSERT`s from the app. Signup at scale runs that path
+   thousands of times, and a partial failure leaves an orphaned tenant with no
+   owner. Write it as a `security definer` function now — workspace, owner
+   membership, default project and sections, in one call.
+3. **`users` rows come from a trigger on `auth.users`, and email is never a
+   key.** The `users` table in §4.1 is the *profile*; Supabase Auth owns
+   identity. Populate it by trigger on signup, join on the auth uuid, and treat
+   email as a mutable attribute. Emails change, and a schema that joins on them
+   is a migration under load later.
+4. **Push validates against an explicit table whitelist** (§9.11), so the
+   first server-owned table — plan, entitlements, limits — is a one-line
+   addition rather than a security review of the push handler.
+5. **Cross-tenant isolation is a CI test, not a code review.** For a single user
+   an RLS mistake is invisible; for a SaaS it is a data breach. Two workspaces,
+   two users, a test asserting that B's session sees exactly zero of A's rows on
+   every synced table — and the §12.1 tombstone trap makes this non-obvious,
+   since the correct policy deliberately *does* return deleted rows. §9.9
+   already establishes the harness habit; this is one more file in it.
+6. **The sync engine emits its events through one sink.** Every push result,
+   rejection, conflict and full re-sync goes through a single `report(event)`
+   function that today does nothing but `console.debug`. Sync problems in a
+   SaaS are invisible unless instrumented, and threading telemetry through a
+   finished sync engine means touching every branch of the code you least want
+   to touch.
+
+**What stays a non-goal**, so this section does not become permission to build a
+billing system for one user: billing and plans, roles beyond `owner|member`,
+organisation hierarchies, SSO, invite flows, admin impersonation, per-workspace
+rate limits, transactional email, multi-region. Every one of them is additive
+given the six above plus §12's eight, and none of them is cheaper to build
+speculatively than to build when a paying customer exists.
+
+Two things already done that the SaaS version would otherwise have to retrofit,
+worth naming because they were built for other reasons: **soft deletes with
+tombstones** (§9) double as the deletion audit trail, and **JSON export**
+(§9.10) is the beginning of the data-portability story.
+
 ---
 
 ## 13. Roadmap
@@ -831,9 +1022,9 @@ becomes tablet-and-desktop-only and a chunk of P0b disappears.
 
 **P1 · Sync and reminders** — Supabase project, schema with §4 columns, §12.1
 policies and §12.2 indexes, auth (passkey preferred over magic link, since it
-needs no inbox access on a new device), the §9 sync engine with its simulation
-harness (§9.9), realtime invalidation, JSON export (§9.10), then the §10
-reminder pipeline end to end. Ends when a task added on the phone appears on the
+needs no inbox access on a new device), the §9 sync engine behind its two RPCs
+(§9.11) with its simulation harness (§9.9), realtime invalidation, JSON export
+(§9.10), then the §10 reminder pipeline end to end. Ends when a task added on the phone appears on the
 MacBook without thought, and a reminder set for tomorrow morning actually
 buzzes.
 
@@ -865,6 +1056,7 @@ Nothing structural is open. What remains is preference, and none of it blocks P0
 4. **Import from anywhere?** If tasks currently live in Google Tasks, Todoist, or Trello, a one-time import is worth an afternoon in P1 — and worth knowing now, because it constrains the schema slightly.
 5. **How much does the board view matter on the phone?** The tablet is wide enough for it; the phone mostly isn't. The P0b touch-drag spike (§13) answers this empirically rather than by argument, which is why it goes first.
 6. **Does the MacBook get reminders too, or only the Android devices?** Cheap either way — `push_subscriptions.reminders_enabled` is per-device — but it changes the default.
+7. **How real is the SaaS future?** (A8) §12.3 buys the cheap insurance either way and nothing there is wasted if the answer is "never". But if it becomes a stated goal rather than a possibility, billing, invites and onboarding stop being non-goals, P3 changes shape, and open question 2 above resolves to *managed* — self-hosting a product you sell is a different job from self-hosting a tool you use.
 
 ---
 
@@ -873,7 +1065,7 @@ Nothing structural is open. What remains is preference, and none of it blocks P0
 The spec has been through three review passes and nothing structural is open.
 The first session's work, in order:
 
-1. **`npm create vite@latest`** — React + TypeScript. Add `vite-plugin-pwa`, Tailwind, Dexie.
+1. **`npm create vite@latest`** — React + TypeScript. Add `vite-plugin-pwa` (in `injectManifest` mode, §11.2), Tailwind, Dexie. No router yet — one view doesn't need one.
 2. **One hardcoded list.** Add a task, complete a task, persisted in Dexie. No projects, no board, no drag.
 3. **Deploy to Cloudflare Pages.** This has to happen on day one — HTTPS is what makes the app installable, and `localhost` will never let you install on the phone.
 4. **Install it on your phone** from its own home-screen icon and use it for a day.
@@ -883,7 +1075,9 @@ everything after it: does an installed PWA feel like an app, is the update flow
 tolerable, and is typing a task genuinely faster than Google Tasks. Those
 answers are worth more than any further refinement of this document.
 
-Two things to carry into P0b so they don't need retrofitting: every write goes
-through a repository that emits an outbox entry (§9.1), and every row is created
-with its full sync column set (§4.1). Everything else in here can be built when
-you reach it.
+Three things to carry into P0b so they don't need retrofitting: every write goes
+through a repository that emits an outbox entry (§9.1); every row is created
+with its full sync column set (§4.1) including a real `workspace_id` from a
+variable rather than a constant (§12.3); and every dependency that could churn
+is imported in exactly one file (§11.3). Everything else in here can be built
+when you reach it.
