@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from './db'
-import { addTask, setTaskDone, renameTask, deleteTask, listTasks } from './repo'
+import {
+  addTask, setTaskDone, renameTask, deleteTask, listTasks,
+  getTask, setTaskNotes, setTaskDue, setTaskPriority,
+} from './repo'
 import { activeWorkspace } from './workspace'
 
 async function entriesFor(rowId: string) {
@@ -159,5 +162,60 @@ describe('repo', () => {
 
   it('returns null for a row that is not there', async () => {
     expect(await renameTask('01920000-0000-7000-8000-0000000000ff', 'ghost')).toBeNull()
+  })
+
+  it('reads a single task, tombstones included', async () => {
+    const { id } = await addTask('buy milk')
+    expect((await getTask(id))!.title).toBe('buy milk')
+    await deleteTask(id)
+    // The sheet may still be open over a task that was just deleted; that is
+    // the reader's problem, not this function's.
+    expect(await getTask(id)).toBeDefined()
+    expect(await getTask('01920000-0000-7000-8000-0000000000ff')).toBeUndefined()
+  })
+
+  it('stores notes, and stores emptiness as null rather than ""', async () => {
+    const { id } = await addTask('buy milk')
+    await setTaskNotes(id, '  the oat one  ')
+    expect((await getTask(id))!.notes).toBe('the oat one')
+
+    await setTaskNotes(id, '   ')
+    // SPEC §4.1 types it `string | null`; two spellings of empty is one too
+    // many for the server to reason about.
+    expect((await getTask(id))!.notes).toBeNull()
+  })
+
+  it('writes due date and time together, and clears the time with the date', async () => {
+    const { id } = await addTask('buy milk')
+    await db.outbox.clear()
+
+    await setTaskDue(id, '2026-08-21', '17:00')
+    expect(await getTask(id)).toMatchObject({ due_on: '2026-08-21', due_time: '17:00' })
+    expect((await entriesFor(id))[0].columns).toEqual(['due_on', 'due_time', 'client_id'])
+
+    // A time with no date is not a due date, it is a fragment.
+    await setTaskDue(id, null, '17:00')
+    expect(await getTask(id)).toMatchObject({ due_on: null, due_time: null })
+  })
+
+  it('restores both due columns on undo', async () => {
+    const { id } = await addTask('buy milk')
+    await setTaskDue(id, '2026-08-21', '17:00')
+
+    const undo = await setTaskDue(id, '2026-08-22', null)
+    await undo!.apply()
+    expect(await getTask(id)).toMatchObject({ due_on: '2026-08-21', due_time: '17:00' })
+  })
+
+  it('stores priority, including a real zero', async () => {
+    const { id } = await addTask('buy milk')
+    await setTaskPriority(id, 2)
+    expect((await getTask(id))!.priority).toBe(2)
+
+    // SPEC §4.1: "the default is a real zero rather than a magic sentinel."
+    const undo = await setTaskPriority(id, 0)
+    expect((await getTask(id))!.priority).toBe(0)
+    await undo!.apply()
+    expect((await getTask(id))!.priority).toBe(2)
   })
 })

@@ -182,3 +182,45 @@ export function renameTask(id: string, title: string): Promise<UndoStep | null> 
 export function deleteTask(id: string): Promise<UndoStep | null> {
   return write('tasks', id, { deleted_at: now() }, 'Task deleted', true)
 }
+
+/**
+ * One row by id, tombstone or not. The sheet needs to render a task that a
+ * background delete may already have tombstoned; filtering here would blank the
+ * form under the user's cursor instead.
+ */
+export function getTask(id: string): Promise<Task | undefined> {
+  return db.tasks.get(id)
+}
+
+export function setTaskNotes(id: string, notes: string): Promise<UndoStep | null> {
+  const trimmed = notes.trim()
+  // SPEC §4.1 types notes `string | null`. Storing "" as well as null would
+  // give the server two spellings of empty to reconcile.
+  return write('tasks', id, { notes: trimmed === '' ? null : trimmed }, 'Notes changed')
+}
+
+/**
+ * SPEC §4.1: a date plus an optional time, never a timestamp. They are written
+ * together because a time without a date is not a due date, and clearing the
+ * date has to clear the time with it.
+ */
+export function setTaskDue(
+  id: string,
+  dueOn: string | null,
+  dueTime: string | null,
+): Promise<UndoStep | null> {
+  return write(
+    'tasks',
+    id,
+    { due_on: dueOn, due_time: dueOn === null ? null : dueTime },
+    'Due date changed',
+  )
+}
+
+/** SPEC §4.1: 0 = none … 3 = highest, and 0 is a real value. */
+export function setTaskPriority(
+  id: string,
+  priority: 0 | 1 | 2 | 3,
+): Promise<UndoStep | null> {
+  return write('tasks', id, { priority }, 'Priority changed')
+}
