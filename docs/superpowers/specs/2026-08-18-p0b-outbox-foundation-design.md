@@ -143,6 +143,14 @@ would be invisible until a second device showed an empty list.
 Every device generates the same fixed ids for these rows. That is harmless:
 push upserts by row id, so the second device's Inbox collapses onto the first.
 
+**The same rows are reachable from two entry points.** Dexie runs `upgrade()`
+only for a database that already exists; a browser installing Lane for the first
+time creates the database at version 2 and never sees an upgrade. So the project
+and section seeding is a shared function called from both `upgrade` and
+`populate`, and only the task backfill is upgrade-specific. Wiring it to
+`upgrade` alone would give a fresh install an outbox with nothing in it and no
+Inbox project to put tasks in.
+
 ## The write seam
 
 Everything in `repo.ts` goes through two internal helpers, and nothing outside
