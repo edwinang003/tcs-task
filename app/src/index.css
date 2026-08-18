@@ -1,0 +1,21 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-ink: #12151c;
+  --color-accent: #7c9cff;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  /* System stack: the app should feel like the OS it is installed on. */
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
