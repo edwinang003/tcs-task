@@ -14,12 +14,18 @@
 const LOCAL_WORKSPACE_ID = '01920000-0000-7000-8000-000000000001'
 const LOCAL_PROJECT_ID = '01920000-0000-7000-8000-000000000002'
 const LOCAL_SECTION_ID = '01920000-0000-7000-8000-000000000003'
+const LOCAL_DONE_SECTION_ID = '01920000-0000-7000-8000-000000000004'
 
 export interface WorkspaceContext {
   workspaceId: string
   /** P0a's one hardcoded list. P0b replaces this with real projects. */
   projectId: string
   sectionId: string
+  /**
+   * SPEC §4: where a completed task lands. Created in the v2 migration;
+   * nothing moves tasks into it until the sections UI exists.
+   */
+  doneSectionId: string
 }
 
 export function activeWorkspace(): WorkspaceContext {
@@ -27,5 +33,6 @@ export function activeWorkspace(): WorkspaceContext {
     workspaceId: LOCAL_WORKSPACE_ID,
     projectId: LOCAL_PROJECT_ID,
     sectionId: LOCAL_SECTION_ID,
+    doneSectionId: LOCAL_DONE_SECTION_ID,
   }
 }
