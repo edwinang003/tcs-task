@@ -41,28 +41,32 @@ will never let you install on the phone, and the phone is where the judgement
 has to happen.
 
 The repo is connected to **Workers Builds** as the project `tcs-task`, so a
-push to `main` builds and deploys itself. `wrangler.jsonc` lives at the repo
-root — Workers Builds looks there by default — and declares a Worker that is
-nothing but static assets: no `main`, because there is no server-side code.
+push to `main` builds and deploys itself. `wrangler.jsonc` lives here in `app/`
+next to `package.json`, and declares a Worker that is nothing but static
+assets: no `main`, because there is no server-side code.
 
-The two settings that cannot live in the file, because Workers Builds keeps
-them in the dashboard (Workers & Pages → `tcs-task` → Settings → Build):
+The settings that cannot live in the file, because Workers Builds keeps them in
+the dashboard (Workers & Pages → `tcs-task` → Settings → Build):
 
 | Setting | Value |
 | --- | --- |
-| Build command | `npm --prefix app ci && npm --prefix app run build` |
+| Root directory | `app` |
+| Build command | `npm run build` |
 | Deploy command | `npx wrangler deploy` |
-| Root directory | `/` (the default) |
 
-The build runs in `app/`; the deploy uploads `app/dist`, which is gitignored
-and therefore has to be built rather than committed.
+**The root directory is the setting that matters.** Left at `/`, the build
+system finds no `package.json`: it detects no Node version, caches no
+dependencies, and `npm run build` fails with `ENOENT ... /opt/buildhome/repo/
+package.json` before it ever reaches wrangler. Pointed at `app`, everything
+else is the default. `dist/` is gitignored, so the deploy uploads what the
+build just made rather than anything committed.
 
 To deploy by hand — before the dashboard settings are in place, or to push a
 build without a commit:
 
 ```sh
-npm --prefix app run build
-npx wrangler deploy            # from the repo root
+npm run build
+npx wrangler deploy            # from app/, where wrangler.jsonc lives
 ```
 
 `public/_headers` is honoured by Workers static assets exactly as it was by
