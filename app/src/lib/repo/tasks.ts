@@ -2,7 +2,7 @@ import { db, MIN_KEY, MAX_KEY } from '../db'
 import { uuidv7 } from '../ids'
 import { clientId } from '../device'
 import { activeWorkspace } from '../workspace'
-import { create, write, now } from './write'
+import { create, write, batch, now } from './write'
 import { doneSectionOf, firstOpenSectionOf, getSection } from './sections'
 import { appendPositionIn } from './positions'
 import type { Task, Section } from '../schema'
@@ -32,30 +32,36 @@ export async function addTask(
   const section = await firstOpenSectionOf(projectId)
   const id = uuidv7()
 
-  const row: Task = {
-    id,
-    workspace_id: workspaceId,
-    project_id: projectId,
-    section_id: section.id,
-    title: trimmed,
-    notes: null,
-    due_on: null,
-    due_time: null,
-    reminder_at: null,
-    reminder_sent_at: null,
-    priority: 0,
-    completed_at: null,
-    recurrence_rule: null,
-    recurrence_parent_id: null,
-    position: await appendPositionIn(section.id),
-    created_by: null,
-    assignee_id: null,
-    updated_at: now(),
-    deleted_at: null,
-    client_id: clientId(),
-  }
+  // The position is derived inside the transaction that writes it. QuickAdd
+  // keeps focus so the next task can be submitted before this one has landed;
+  // read outside, both submissions see the same last key.
+  const undo = await batch(['tasks'], async () => {
+    const row: Task = {
+      id,
+      workspace_id: workspaceId,
+      project_id: projectId,
+      section_id: section.id,
+      title: trimmed,
+      notes: null,
+      due_on: null,
+      due_time: null,
+      reminder_at: null,
+      reminder_sent_at: null,
+      priority: 0,
+      completed_at: null,
+      recurrence_rule: null,
+      recurrence_parent_id: null,
+      position: await appendPositionIn(section.id),
+      created_by: null,
+      assignee_id: null,
+      updated_at: now(),
+      deleted_at: null,
+      client_id: clientId(),
+    }
+    return create('tasks', row, 'Task added')
+  })
 
-  return { id, undo: await create('tasks', row, 'Task added') }
+  return { id, undo }
 }
 
 /**
@@ -74,20 +80,27 @@ async function moveTaskTo(
   toast: boolean,
   extra: Record<string, unknown> = {},
 ): Promise<UndoStep | null> {
-  return write(
-    'tasks',
-    task.id,
-    {
-      ...extra,
-      // Landing in the done section completes the task; leaving it reopens it.
-      // An existing timestamp is kept, so P2's completed log reads the moment
-      // the work was finished rather than the last time the row was touched.
-      completed_at: target.is_done_section ? (task.completed_at ?? now()) : null,
-      section_id: target.id,
-      position: await appendPositionIn(target.id),
-    },
-    label,
-    toast,
+  // Same transaction for the read and the write: two checkboxes tapped in
+  // quick succession both append into the done section.
+  return batch(['tasks'], async () =>
+    write(
+      'tasks',
+      task.id,
+      {
+        ...extra,
+        // Landing in the done section completes the task; leaving it reopens
+        // it. An existing timestamp is kept, so P2's completed log reads the
+        // moment the work was finished rather than the last time the row was
+        // touched.
+        completed_at: target.is_done_section
+          ? (task.completed_at ?? now())
+          : null,
+        section_id: target.id,
+        position: await appendPositionIn(target.id),
+      },
+      label,
+      toast,
+    ),
   )
 }
 
