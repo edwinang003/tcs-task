@@ -45,14 +45,13 @@ export function DragArea({
   children: ReactNode
 }) {
   const sensors = useSensors(
-    // A phone has one pointer and it is already used for scrolling, so a drag
-    // has to be distinguishable from a swipe: press and hold, then move. 200ms
-    // is the number this spike is really testing — too short and the list
-    // fights the thumb, too long and dragging feels stuck.
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 200, tolerance: 8 },
-    }),
-    // A mouse has no such ambiguity: a few pixels of travel is enough.
+    // Press-and-hold was the first attempt and Android took it: the long press
+    // raises the browser's own selection menu — Copy / Share / Select all —
+    // before dnd-kit sees a gesture at all. The cure is `touch-action: none`,
+    // which tells the browser to keep its hands off, but on a row it would also
+    // kill scrolling, and here the rows *are* the list. So the constraint moves
+    // to a handle (below) and the drag can start on movement instead of time.
+    useSensor(TouchSensor, { activationConstraint: { distance: 5 } }),
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   )
 
@@ -105,29 +104,47 @@ export function DragGroup({
 }
 
 /**
- * One row. The whole row is the handle: a 44px grip on a phone costs more
- * screen than it earns, and the press-and-hold above already separates a drag
- * from a tap.
+ * One row, with the grip handed to the caller rather than the whole row being
+ * draggable.
+ *
+ * The handle carries `touch-action: none`, so the browser gives that patch of
+ * screen to us and stops trying to select text or scroll from it. Everything
+ * else in the row keeps its ordinary behaviour: the list still scrolls under a
+ * thumb, and the title is still a tap target that opens the sheet.
  */
 export function DragItem({
   id,
   children,
 }: {
   id: string
-  children: ReactNode
+  children: (handle: Record<string, unknown>) => ReactNode
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id })
+
+  const handle = {
+    ...attributes,
+    ...listeners,
+    style: {
+      touchAction: 'none' as const,
+      userSelect: 'none' as const,
+      WebkitUserSelect: 'none' as const,
+      // Android raises the copy/share callout on a long press even when there
+      // is no selection to make.
+      WebkitTouchCallout: 'none' as const,
+    },
+    // A long press that survives the two rules above still gets a menu on some
+    // builds; there is nothing on this row worth right-clicking anyway.
+    onContextMenu: (event: { preventDefault: () => void }) => event.preventDefault(),
+  }
 
   return (
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={isDragging ? 'opacity-30' : undefined}
-      {...attributes}
-      {...listeners}
     >
-      {children}
+      {children(handle)}
     </li>
   )
 }

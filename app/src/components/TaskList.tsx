@@ -116,7 +116,18 @@ export function TaskList({ onOpen }: { onOpen: (id: string) => void }) {
                   const overdue = !done && isOverdue(task.due_on, task.due_time)
                   return (
                     <DragItem key={task.id} id={task.id}>
+                    {(handle) => (
                     <div className="group flex items-center gap-3 rounded-xl px-1 py-1">
+                      {/* SPIKE: the grip. On a phone this has to be its own
+                          target — the row cannot be one, or the list stops
+                          scrolling. */}
+                      <span
+                        {...handle}
+                        aria-label={`Reorder ${task.title}`}
+                        className="flex min-h-11 cursor-grab items-center px-1 text-lg leading-none text-neutral-300 dark:text-neutral-600"
+                      >
+                        ⠿
+                      </span>
                       <label className="flex min-h-11 shrink-0 cursor-pointer items-center pl-1 pr-1">
                         <input
                           type="checkbox"
@@ -164,6 +175,7 @@ export function TaskList({ onOpen }: { onOpen: (id: string) => void }) {
                         &times;
                       </button>
                     </div>
+                    )}
                     </DragItem>
                   )
                 })}
