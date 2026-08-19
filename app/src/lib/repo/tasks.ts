@@ -5,6 +5,7 @@ import { activeWorkspace } from '../workspace'
 import { create, write, batch, now } from './write'
 import { doneSectionOf, firstOpenSectionOf, getSection } from './sections'
 import { appendPositionIn } from './positions'
+import { generateKeyBetween } from '../fractional-indexing'
 import type { Task, Section } from '../schema'
 import type { UndoStep } from '../undo'
 
@@ -79,6 +80,9 @@ async function moveTaskTo(
   label: string,
   toast: boolean,
   extra: Record<string, unknown> = {},
+  // A drop lands between two neighbours rather than at the end. Passed in so
+  // the binding below stays the only place that writes these three columns.
+  position?: string,
 ): Promise<UndoStep | null> {
   // Same transaction for the read and the write: two checkboxes tapped in
   // quick succession both append into the done section.
@@ -96,7 +100,7 @@ async function moveTaskTo(
           ? (task.completed_at ?? now())
           : null,
         section_id: target.id,
-        position: await appendPositionIn(target.id),
+        position: position ?? (await appendPositionIn(target.id)),
       },
       label,
       toast,
@@ -123,6 +127,44 @@ export async function setTaskDone(
     target,
     done ? 'Task completed' : 'Task reopened',
     done,
+  )
+}
+
+/**
+ * SPIKE (touch drag) — throwaway. Drop `id` into `sectionId` directly above
+ * `beforeId`, or at the end when that is null.
+ *
+ * Routes through `moveTaskTo` like every other move, so dropping into the done
+ * section ticks the checkbox exactly as the sheet's picker does.
+ */
+export async function dropTaskAt(
+  id: string,
+  sectionId: string,
+  beforeId: string | null,
+): Promise<UndoStep | null> {
+  const task = await getTask(id)
+  const target = await getSection(sectionId)
+  if (task === undefined || target === undefined) return null
+
+  const siblings = (await db.tasks.toArray())
+    .filter(
+      (t) =>
+        t.section_id === sectionId && t.deleted_at === null && t.id !== id,
+    )
+    .sort((a, b) => (a.position < b.position ? -1 : 1))
+
+  const at = beforeId === null ? -1 : siblings.findIndex((t) => t.id === beforeId)
+  const index = at === -1 ? siblings.length : at
+  const previous = siblings[index - 1]?.position ?? null
+  const next = siblings[index]?.position ?? null
+
+  return moveTaskTo(
+    task,
+    target,
+    'Task moved',
+    false,
+    {},
+    generateKeyBetween(previous, next),
   )
 }
 

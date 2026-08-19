@@ -9,13 +9,14 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
-  listTasks, listSections, setTaskDone, deleteTask, addSection,
+  listTasks, listSections, setTaskDone, deleteTask, addSection, dropTaskAt,
 } from '../lib/repo'
 import { groupBySection } from '../lib/grouping'
 import { formatDue, isOverdue } from '../lib/dates'
 import { useOpenProject } from '../lib/useOpenProject'
 import { pushUndo } from '../lib/undo'
 import { SectionHeader } from './SectionHeader'
+import { DragArea, DragGroup, DragItem } from './DraggableList'
 
 export function TaskList({ onOpen }: { onOpen: (id: string) => void }) {
   const { projectId } = useOpenProject()
@@ -23,6 +24,8 @@ export function TaskList({ onOpen }: { onOpen: (id: string) => void }) {
   const sections = useLiveQuery(() => listSections(projectId), [projectId])
   const [doneOpen, setDoneOpen] = useState(false)
   const [adding, setAdding] = useState('')
+  // SPIKE (touch drag) — throwaway.
+  const [dragging, setDragging] = useState<string | null>(null)
 
   if (tasks === undefined || sections === undefined) {
     // First read from IndexedDB. Deliberately blank rather than a spinner —
@@ -33,6 +36,34 @@ export function TaskList({ onOpen }: { onOpen: (id: string) => void }) {
   const groups = groupBySection(sections, tasks)
   const openSections = sections.filter((s) => !s.is_done_section).length
 
+  /**
+   * SPIKE (touch drag) — throwaway. `over` is a task id or a section id.
+   * Dropping onto a task means "above this one", except when the task came
+   * from higher up the same section, where the row the thumb is over has
+   * already shifted up and the drop belongs below it.
+   */
+  function onDrop(activeId: string, overId: string | null) {
+    setDragging(null)
+    if (overId === null || overId === activeId || activeId === '') return
+
+    const from = groups.find((g) => g.tasks.some((t) => t.id === activeId))
+    const toSection = groups.find((g) => g.section.id === overId)
+    if (toSection !== undefined) {
+      void dropTaskAt(activeId, toSection.section.id, null).then(pushUndo)
+      return
+    }
+
+    const to = groups.find((g) => g.tasks.some((t) => t.id === overId))
+    if (to === undefined) return
+    const overIndex = to.tasks.findIndex((t) => t.id === overId)
+    const fromIndex = from === to ? to.tasks.findIndex((t) => t.id === activeId) : -1
+    const before =
+      fromIndex !== -1 && fromIndex < overIndex
+        ? (to.tasks[overIndex + 1]?.id ?? null)
+        : overId
+    void dropTaskAt(activeId, to.section.id, before).then(pushUndo)
+  }
+
   async function addNewSection(e: React.FormEvent) {
     e.preventDefault()
     const name = adding.trim()
@@ -41,13 +72,32 @@ export function TaskList({ onOpen }: { onOpen: (id: string) => void }) {
     pushUndo((await addSection(projectId, name)).undo)
   }
 
+  const draggedTask = tasks.find((t) => t.id === dragging)
+
   return (
     <div className="mx-auto max-w-2xl px-3 py-2">
+      <DragArea
+        onStart={setDragging}
+        onDrop={onDrop}
+        overlay={
+          draggedTask === undefined ? null : (
+            <div className="rounded-xl bg-white px-3 py-2 shadow-lg dark:bg-neutral-800">
+              <span className="text-neutral-900 dark:text-neutral-100">
+                {draggedTask.title}
+              </span>
+            </div>
+          )
+        }
+      >
       {groups.map((group) => {
         const isDone = group.section.is_done_section
         const collapsed = isDone ? !doneOpen : null
         return (
           <section key={group.section.id}>
+            <DragGroup
+              id={group.section.id}
+              itemIds={collapsed === true ? [] : group.tasks.map((t) => t.id)}
+            >
             <SectionHeader
               section={group.section}
               count={group.tasks.length}
@@ -65,10 +115,8 @@ export function TaskList({ onOpen }: { onOpen: (id: string) => void }) {
                   // A completed task is not overdue, however late it was.
                   const overdue = !done && isOverdue(task.due_on, task.due_time)
                   return (
-                    <li
-                      key={task.id}
-                      className="group flex items-center gap-3 rounded-xl px-1 py-1"
-                    >
+                    <DragItem key={task.id} id={task.id}>
+                    <div className="group flex items-center gap-3 rounded-xl px-1 py-1">
                       <label className="flex min-h-11 shrink-0 cursor-pointer items-center pl-1 pr-1">
                         <input
                           type="checkbox"
@@ -115,14 +163,17 @@ export function TaskList({ onOpen }: { onOpen: (id: string) => void }) {
                       >
                         &times;
                       </button>
-                    </li>
+                    </div>
+                    </DragItem>
                   )
                 })}
               </ul>
             )}
+            </DragGroup>
           </section>
         )
       })}
+      </DragArea>
 
       <form onSubmit={addNewSection} className="mt-4">
         <input
