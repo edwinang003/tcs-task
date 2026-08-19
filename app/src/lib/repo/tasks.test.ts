@@ -342,4 +342,35 @@ describe('repo', () => {
       (await firstOpenSectionOf(other)).id,
     )
   })
+  // Two tasks in one section holding the same key is latent today — IndexedDB
+  // falls back to primary-key order — but `generateKeyBetween(a, b)` throws
+  // "a >= b" on equal neighbours, so the drag slice would surface it as a
+  // crash rather than a cosmetic reorder.
+  it('gives two appends racing into one section distinct positions', async () => {
+    // QuickAdd keeps focus so a second task can be submitted before the first
+    // has finished writing; two checkboxes tapped in quick succession append
+    // into the done section the same way.
+    const [first, second] = await Promise.all([
+      addTask('one', inbox),
+      addTask('two', inbox),
+    ])
+
+    const a = await getTask(first.id)
+    const b = await getTask(second.id)
+    expect(a!.position).not.toBe(b!.position)
+  })
+
+  it('does not hand a tombstone\'s position to the next task', async () => {
+    // Delete the last task in a section, add another while the undo offer is
+    // still up, then take the delete back: both rows are live again, and they
+    // must not be sitting on the same key.
+    const { id } = await addTask('first', inbox)
+    const undo = await deleteTask(id)
+    const { id: laterId } = await addTask('second', inbox)
+    await undo!.apply()
+
+    const live = (await db.tasks.toArray()).filter((t) => t.deleted_at === null)
+    expect(live.map((t) => t.id).sort()).toEqual([id, laterId].sort())
+    expect(new Set(live.map((t) => t.position)).size).toBe(live.length)
+  })
 })

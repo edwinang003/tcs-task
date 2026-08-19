@@ -14,10 +14,20 @@
 import { db } from '../db'
 import { generateKeyBetween } from '../fractional-indexing'
 
+/**
+ * Must be called inside the transaction that writes the key it returns — see
+ * `addTask` and `moveTaskTo`, which wrap it in `batch()`. Read outside one,
+ * two appends into the same section interleave, both see the same last key,
+ * and both write it.
+ *
+ * Tombstones count. A deleted task's key is not free: the delete is undoable
+ * for the length of the toast, and handing the key to the next task would put
+ * two live rows on it the moment the user takes the delete back.
+ */
 export async function appendPositionIn(sectionId: string): Promise<string> {
   const tasks = await db.tasks.toArray()
   const positions = tasks
-    .filter((task) => task.section_id === sectionId && task.deleted_at === null)
+    .filter((task) => task.section_id === sectionId)
     .map((task) => task.position)
     .sort()
   return generateKeyBetween(positions.at(-1) ?? null, null)
