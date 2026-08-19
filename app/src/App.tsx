@@ -3,6 +3,7 @@ import { InstallButton } from './components/InstallButton'
 import { QuickAdd } from './components/QuickAdd'
 import { TaskList } from './components/TaskList'
 import { UndoToast } from './components/Toast'
+import { ProblemToast } from './components/ProblemToast'
 import { TaskSheet } from './components/TaskSheet'
 import { UpdatePrompt } from './components/UpdatePrompt'
 import { Drawer } from './components/Drawer'
@@ -36,6 +37,7 @@ export default function App() {
   return (
     <div className="flex h-full bg-white text-[15px] dark:bg-ink">
       <UpdatePrompt />
+      <ProblemToast />
       <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
       <div className="flex min-w-0 flex-1 flex-col">

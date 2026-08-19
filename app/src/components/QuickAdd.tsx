@@ -13,6 +13,7 @@
 import { useRef, useState } from 'react'
 import { addTask } from '../lib/repo'
 import { pushUndo } from '../lib/undo'
+import { reportProblem } from '../lib/problems'
 import { useOpenProject } from '../lib/useOpenProject'
 
 export function QuickAdd() {
@@ -27,8 +28,15 @@ export function QuickAdd() {
     // Clear first: the write goes to IndexedDB and the list re-renders from
     // there, so the field should never appear to wait on anything (SPEC §9).
     setTitle('')
-    const { undo } = await addTask(value, projectId)
-    pushUndo(undo)
+    try {
+      const { undo } = await addTask(value, projectId)
+      pushUndo(undo)
+    } catch (error) {
+      // The field was cleared optimistically, so a failure has to hand the
+      // words back — losing what someone typed is worse than the failure.
+      setTitle(value)
+      reportProblem('Task not added', error)
+    }
     input.current?.focus()
   }
 
