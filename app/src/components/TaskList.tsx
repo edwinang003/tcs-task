@@ -118,16 +118,6 @@ export function TaskList({ onOpen }: { onOpen: (id: string) => void }) {
                     <DragItem key={task.id} id={task.id}>
                     {(handle) => (
                     <div className="group flex items-center gap-3 rounded-xl px-1 py-1">
-                      {/* SPIKE: the grip. On a phone this has to be its own
-                          target — the row cannot be one, or the list stops
-                          scrolling. */}
-                      <span
-                        {...handle}
-                        aria-label={`Reorder ${task.title}`}
-                        className="flex min-h-11 cursor-grab items-center px-1 text-lg leading-none text-neutral-300 dark:text-neutral-600"
-                      >
-                        ⠿
-                      </span>
                       <label className="flex min-h-11 shrink-0 cursor-pointer items-center pl-1 pr-1">
                         <input
                           type="checkbox"
@@ -174,6 +164,16 @@ export function TaskList({ onOpen }: { onOpen: (id: string) => void }) {
                       >
                         &times;
                       </button>
+                      {/* SPIKE: the grip, at the right edge where a thumb
+                          already rests. It has to be its own target — the row
+                          cannot be one, or the list stops scrolling. */}
+                      <span
+                        {...handle}
+                        aria-label={`Reorder ${task.title}`}
+                        className="flex min-h-11 shrink-0 cursor-grab items-center pl-1 pr-2 text-lg leading-none text-neutral-300 dark:text-neutral-600"
+                      >
+                        ⠿
+                      </span>
                     </div>
                     )}
                     </DragItem>
