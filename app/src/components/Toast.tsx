@@ -32,8 +32,37 @@ export function UndoToast() {
 
   useEffect(() => {
     if (step === null || !step.toast) return
-    const timer = setTimeout(() => setExpired(step), VISIBLE_MS)
-    return () => clearTimeout(timer)
+
+    // The countdown measures attention, not wall clock. A phone that locks, or
+    // an app switch to check the calendar before deciding, would otherwise
+    // spend the whole window with the toast off-screen and the delete
+    // unrecoverable by the time the user looks again.
+    let remaining = VISIBLE_MS
+    let startedAt = performance.now()
+    let timer: number | undefined
+
+    function resume() {
+      if (timer !== undefined) return
+      startedAt = performance.now()
+      timer = window.setTimeout(() => setExpired(step), remaining)
+    }
+    function pause() {
+      if (timer === undefined) return
+      window.clearTimeout(timer)
+      timer = undefined
+      remaining = Math.max(0, remaining - (performance.now() - startedAt))
+    }
+    function onVisibilityChange() {
+      if (document.hidden) pause()
+      else resume()
+    }
+
+    if (!document.hidden) resume()
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      window.clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [step])
 
   useEffect(() => {
