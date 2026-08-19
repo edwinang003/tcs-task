@@ -34,30 +34,52 @@ npm run lint     # oxlint
 npm run icons    # regenerate public/icon-*.png
 ```
 
-## Deploying to Cloudflare Pages
+## Deploying to Cloudflare
 
 SPEC §15 step 3: this has to happen on day one. `localhost` develops fine but
 will never let you install on the phone, and the phone is where the judgement
 has to happen.
 
-Once, to create the project:
+The repo is connected to **Workers Builds** as the project `tcs-task`, so a
+push to `main` builds and deploys itself. `wrangler.jsonc` lives at the repo
+root — Workers Builds looks there by default — and declares a Worker that is
+nothing but static assets: no `main`, because there is no server-side code.
+
+The two settings that cannot live in the file, because Workers Builds keeps
+them in the dashboard (Workers & Pages → `tcs-task` → Settings → Build):
+
+| Setting | Value |
+| --- | --- |
+| Build command | `npm --prefix app ci && npm --prefix app run build` |
+| Deploy command | `npx wrangler deploy` |
+| Root directory | `/` (the default) |
+
+The build runs in `app/`; the deploy uploads `app/dist`, which is gitignored
+and therefore has to be built rather than committed.
+
+To deploy by hand — before the dashboard settings are in place, or to push a
+build without a commit:
 
 ```sh
-npx wrangler pages project create lane --production-branch main
+npm --prefix app run build
+npx wrangler deploy            # from the repo root
 ```
 
-Then for each deploy:
+`public/_headers` is honoured by Workers static assets exactly as it was by
+Pages: `sw.js`, the shell and the manifest are uncached so a new deploy is
+actually noticed (SPEC §9.8), while hashed assets are immutable. Verified
+against `wrangler dev`:
 
-```sh
-npm run build
-npx wrangler pages deploy dist --project-name lane
+```
+/                        no-cache
+/sw.js                   no-cache
+/manifest.webmanifest    no-cache
+/assets/index-*.js       public, max-age=31536000, immutable
 ```
 
-Or connect the GitHub repo in the Cloudflare dashboard with build command
-`npm run build`, output directory `dist`, and root directory `app`.
-
-`public/_headers` keeps `sw.js` and `index.html` uncached so a new deploy is
-actually noticed (SPEC §9.8), while hashed assets are cached forever.
+`not_found_handling` is set to `single-page-application`, so a hard refresh on
+any path returns the shell rather than a 404 — the app has no router, but the
+service worker's scope and the home-screen launch URL still have to resolve.
 
 ## Layout
 

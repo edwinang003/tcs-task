@@ -7,6 +7,12 @@
 /sw.js
   Cache-Control: no-cache
 
+# Both spellings of the shell. `/index.html` is the file; `/` is the URL every
+# visit and every launch from the home screen actually asks for, and a rule
+# written for one does not cover the other.
+/
+  Cache-Control: no-cache
+
 /index.html
   Cache-Control: no-cache
 
