@@ -3,3 +3,6 @@ dist/
 .playwright-mcp/
 .DS_Store
 *.local
+
+# wrangler dev writes its local state here.
+.wrangler/
