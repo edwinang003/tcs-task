@@ -1,0 +1,23 @@
+{
+  // Lane is served by a Worker that is nothing but static assets — there is no
+  // `main`, because there is no server-side code to run. SPEC §11.2: the app is
+  // a PWA that works offline from IndexedDB; the only thing the edge does is
+  // hand over the bundle.
+  //
+  // This file sits at the repo root rather than in `app/` so that Workers
+  // Builds finds it with its default root directory. The build itself still
+  // happens in `app/` — see the build command in the README.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tcs-task",
+  "compatibility_date": "2026-08-19",
+  "assets": {
+    "directory": "./app/dist",
+    // The app has no router (`nav.ts` is a module singleton, not a URL), but a
+    // hard refresh on any path still has to return the shell rather than a 404
+    // — including the paths the service worker was installed under.
+    "not_found_handling": "single-page-application"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
