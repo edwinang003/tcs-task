@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { groupBySection } from './grouping'
+import { groupBySection, orderSections } from './grouping'
 import type { Section, Task } from './schema'
 
 function section(id: string, position: string, done = false): Section {
@@ -104,3 +104,18 @@ describe('groupBySection', () => {
     expect(groupBySection([], [task('one', 'gone', 'a0')])).toEqual([])
   })
 })
+
+describe('orderSections', () => {
+  it('offers the done section last, as the list draws it', () => {
+    // The sheet's Section picker and the list read the same project. Ordering
+    // them differently would put Done in the middle of the picker and at the
+    // foot of the list on one screen.
+    const ordered = orderSections([
+      section('done', 'a0', true),
+      section('todo', 'a1'),
+      section('errands', 'a2'),
+    ])
+    expect(ordered.map((s) => s.id)).toEqual(['todo', 'errands', 'done'])
+  })
+})
+
