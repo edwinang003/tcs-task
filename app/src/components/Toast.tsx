@@ -15,7 +15,14 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { subscribe, getUndo, undoLast, type UndoStep } from '../lib/undo'
 
-const VISIBLE_MS = 6000
+/**
+ * How long the offer stands. Ten seconds rather than the usual five or six,
+ * because on a phone this toast is the *whole* undo affordance — there is no
+ * Ctrl+Z behind it — so its lifetime is the entire window in which a delete is
+ * recoverable, and it has to cover noticing the toast, reading it, deciding,
+ * and getting a thumb down to the bottom of the screen.
+ */
+const VISIBLE_MS = 10_000
 
 export function UndoToast() {
   const step = useSyncExternalStore(subscribe, getUndo, getUndo)
