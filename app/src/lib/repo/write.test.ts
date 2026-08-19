@@ -80,4 +80,39 @@ describe('write primitives', () => {
 
     expect((await db.projects.get('keep'))?.name).toBe('Temporary')
   })
+  // Both of these protect the same thing: the undo store holds exactly one
+  // step (SPEC §4.5), so any write that had no reason to happen evicts the
+  // step the user is actually reaching for — the toast disappears mid-offer
+  // and the delete behind it becomes unrecoverable.
+  it('ignores a write that changes nothing', async () => {
+    await create('projects', projectRow('unchanged'), 'Project added')
+    await db.outbox.clear()
+    const stampBefore = (await db.projects.get('unchanged'))!.updated_at
+
+    const step = await write('projects', 'unchanged', { name: 'Temporary' }, 'Renamed')
+
+    expect(step).toBeNull()
+    expect(await db.outbox.count()).toBe(0)
+    // Not even the stamp moves: an identical write is not a write.
+    expect((await db.projects.get('unchanged'))!.updated_at).toBe(stampBefore)
+  })
+
+  it('ignores an edit to a tombstone, but lets the undo of the delete through', async () => {
+    // The sheet's debounced commit can land after Delete was tapped. Writing
+    // the tombstone would push a second step over the delete's own.
+    await create('projects', projectRow('deleted'), 'Project added')
+    await write('projects', 'deleted', { deleted_at: now() }, 'Project deleted', true)
+    await db.outbox.clear()
+
+    const late = await write('projects', 'deleted', { name: 'Late edit' }, 'Renamed')
+    expect(late).toBeNull()
+    expect((await db.projects.get('deleted'))!.name).toBe('Temporary')
+    expect(await db.outbox.count()).toBe(0)
+
+    // A change that touches `deleted_at` is how a delete is undone, so it has
+    // to survive the guard.
+    const revived = await write('projects', 'deleted', { deleted_at: null }, 'Project restored')
+    expect(revived).not.toBeNull()
+    expect((await db.projects.get('deleted'))!.deleted_at).toBeNull()
+  })
 })

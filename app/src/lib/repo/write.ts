@@ -68,14 +68,33 @@ export async function write(
     db.table(table),
     db.outbox,
     async () => {
-      const row = await db.table(table).get(id)
+      const row = (await db.table(table).get(id)) as
+        | Record<string, unknown>
+        | undefined
       // A row that is not there cannot be dirty. Enqueueing anyway would push
       // a phantom id at the server.
       if (row === undefined) return null
+
+      // A tombstone is not editable. The sheet leaves its debounced commit
+      // armed across close on purpose, so an edit can land after Delete was
+      // tapped; writing it here would append an outbox entry for a row the
+      // server is being told to forget, and — because the undo store holds one
+      // step (SPEC §4.5) — would push a step over the delete's own, taking the
+      // toast off the screen mid-offer. Clearing `deleted_at` is how that
+      // delete is undone, so a change that touches the column itself passes.
+      if (row.deleted_at !== null && !('deleted_at' in changes)) return null
+
+      // An edit that changes nothing is not an edit: it would bump
+      // `updated_at`, enqueue a push of identical values, and evict the undo
+      // step the user is reaching for. Every column written here is a scalar
+      // or null, so identity is the right comparison.
+      const keys = Object.keys(changes)
+      if (keys.every((key) => row[key] === changes[key])) return null
+
       // The columns in `changes`, not in `stamped`: restoring a previous
       // `updated_at` would push a server-owned column backwards (SPEC §4.1),
       // and the restore deserves its own stamp anyway.
-      const before = pick(row as Record<string, unknown>, Object.keys(changes))
+      const before = pick(row, keys)
       await db.table(table).update(id, stamped)
       await appendOutbox(table, id, Object.keys(stamped))
       return before
