@@ -29,6 +29,9 @@ import { pushUndo, type UndoStep } from '../lib/undo'
 
 const PAUSE_MS = 500
 
+/** The fields that commit on their own schedule, each with its own timer. */
+type Field = 'title' | 'notes' | 'due' | 'priority' | 'project' | 'section'
+
 const PRIORITIES: { value: 0 | 1 | 2 | 3; label: string }[] = [
   { value: 0, label: 'None' },
   { value: 1, label: 'Low' },
@@ -54,7 +57,12 @@ export function TaskSheet({
   onClose: () => void
 }) {
   const [draft, setDraft] = useState<Draft | null>(null)
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  // One timer per field, not one for the sheet. A single timer meant that
+  // committing any field cancelled another field's pending edit — type into
+  // Notes, tap a priority within the pause, and on a browser that does not
+  // blur a textarea when a button is tapped (iOS Safari) the notes were
+  // silently dropped while the sheet still displayed them.
+  const timers = useRef(new Map<Field, ReturnType<typeof setTimeout>>())
 
   useEffect(() => {
     let live = true
@@ -91,15 +99,22 @@ export function TaskSheet({
 
   /**
    * The timer is deliberately not cleared on unmount: an edit typed a moment
-   * before closing the sheet still has to land.
+   * before closing the sheet still has to land. `write()` refuses a tombstone,
+   * so one that lands after Delete is a no-op rather than a step over the
+   * delete's own.
    */
-  function commitLater(run: () => Promise<UndoStep | null>) {
-    clearTimeout(timer.current)
-    timer.current = setTimeout(() => void run().then(pushUndo), PAUSE_MS)
+  function commitLater(field: Field, run: () => Promise<UndoStep | null>) {
+    clearTimeout(timers.current.get(field))
+    timers.current.set(
+      field,
+      setTimeout(() => void run().then(pushUndo), PAUSE_MS),
+    )
   }
 
-  function commitNow(run: () => Promise<UndoStep | null>) {
-    clearTimeout(timer.current)
+  /** Only this field's pending edit is superseded; the others still land. */
+  function commitNow(field: Field, run: () => Promise<UndoStep | null>) {
+    clearTimeout(timers.current.get(field))
+    timers.current.delete(field)
     void run().then(pushUndo)
   }
 
@@ -108,7 +123,7 @@ export function TaskSheet({
     // this the row would hold no time while the sheet still displayed one.
     const time = dueOn === '' ? '' : dueTime
     setDraft((d) => (d === null ? d : { ...d, dueOn, dueTime: time }))
-    commitNow(() => setTaskDue(taskId, dueOn || null, time || null))
+    commitNow('due', () => setTaskDue(taskId, dueOn || null, time || null))
   }
 
   return (
@@ -141,9 +156,9 @@ export function TaskSheet({
               onChange={(e) => {
                 const title = e.target.value
                 setDraft({ ...draft, title })
-                commitLater(() => renameTask(taskId, title))
+                commitLater('title', () => renameTask(taskId, title))
               }}
-              onBlur={() => commitNow(() => renameTask(taskId, draft.title))}
+              onBlur={() => commitNow('title', () => renameTask(taskId, draft.title))}
               aria-label="Title"
               className="min-h-11 w-full bg-transparent text-lg font-medium text-neutral-900 outline-none dark:text-neutral-100"
             />
@@ -157,9 +172,9 @@ export function TaskSheet({
                 onChange={(e) => {
                   const notes = e.target.value
                   setDraft({ ...draft, notes })
-                  commitLater(() => setTaskNotes(taskId, notes))
+                  commitLater('notes', () => setTaskNotes(taskId, notes))
                 }}
-                onBlur={() => commitNow(() => setTaskNotes(taskId, draft.notes))}
+                onBlur={() => commitNow('notes', () => setTaskNotes(taskId, draft.notes))}
                 className="mt-1 w-full resize-y rounded-xl border border-black/10 bg-white p-3 text-[15px] font-normal text-neutral-900 outline-none focus:border-accent dark:border-white/15 dark:bg-white/5 dark:text-neutral-100"
               />
             </label>
@@ -196,7 +211,7 @@ export function TaskSheet({
                   aria-pressed={draft.priority === p.value}
                   onClick={() => {
                     setDraft({ ...draft, priority: p.value })
-                    commitNow(() => setTaskPriority(taskId, p.value))
+                    commitNow('priority', () => setTaskPriority(taskId, p.value))
                   }}
                   className={
                     'min-h-11 flex-1 rounded-xl border text-sm ' +
@@ -228,7 +243,7 @@ export function TaskSheet({
                   // snap to some option that does not describe where the task
                   // actually is.
                   setDraft({ ...draft, projectId, sectionId: '' })
-                  commitNow(async () => {
+                  commitNow('project', async () => {
                     const step = await setTaskProject(taskId, projectId)
                     const moved = await getTask(taskId)
                     if (moved !== undefined) {
@@ -263,7 +278,7 @@ export function TaskSheet({
                   // SPEC §4's binding, reached without a drag: choosing Done
                   // here completes the task, exactly as dragging it there
                   // would.
-                  commitNow(() => setTaskSection(taskId, sectionId))
+                  commitNow('section', () => setTaskSection(taskId, sectionId))
                 }}
                 className="min-h-11 flex-1 rounded-xl border border-black/10 bg-white px-3 text-[15px] text-neutral-900 outline-none focus:border-accent disabled:opacity-40 dark:border-white/15 dark:bg-white/5 dark:text-neutral-100"
               >
