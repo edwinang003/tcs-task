@@ -28,17 +28,40 @@ const MANIFEST = self.__WB_MANIFEST
  * SPEC §12 item 7: no user identity in cache names — a second user on this
  * device must not collide with ours.
  */
+/**
+ * Bumped by hand when this worker's *logic* changes in a way that makes what
+ * is already cached wrong. The manifest hash below cannot see such a change —
+ * the asset list is identical — so without this the poisoned entry from the
+ * redirect bug would sit in the cache until an unrelated asset happened to
+ * change.
+ */
+const LOGIC = 2
+
 const VERSION = (() => {
   let h = 5381
   for (const entry of MANIFEST) {
     const s = entry.url + (entry.revision ?? '')
     for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0
   }
-  return h.toString(36)
+  return `${LOGIC}-${h.toString(36)}`
 })()
 
 const CACHE = `lane-precache-${VERSION}`
-const SHELL = '/index.html'
+
+/**
+ * The shell is precached under `/`, not `/index.html`.
+ *
+ * Cloudflare canonicalises `/index.html` to `/` with a 307, so fetching the
+ * file by name yields a response whose `redirected` flag is set — and the
+ * Fetch spec forbids satisfying a navigation (redirect mode "manual") with a
+ * redirected response. The browser turns it into a network error, so every
+ * navigation after this worker activates fails: the app opens once, then never
+ * again, on every device that visited, until the site's data is cleared.
+ *
+ * Vite's dev server serves `/index.html` directly, which is why this could
+ * only ever appear in production.
+ */
+const SHELL = '/'
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -52,6 +75,10 @@ self.addEventListener('install', (event) => {
       const urls = new Set(
         MANIFEST.map((e) => new URL(e.url, self.location.href).href),
       )
+      // The manifest names the shell `index.html`, which is the spelling that
+      // redirects. Drop it in favour of the URL the app is actually launched
+      // at — `start_url` and `scope` are both `/`.
+      urls.delete(new URL('index.html', self.location.href).href)
       urls.add(new URL(SHELL, self.location.href).href)
       try {
         await cache.addAll([...urls])
@@ -101,7 +128,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       (async () => {
         const cached = await matchPrecache(SHELL)
-        return cached ?? fetch(request)
+        return cached ? safeForNavigation(cached) : fetch(request)
       })(),
     )
     return
@@ -129,4 +156,20 @@ self.addEventListener('fetch', (event) => {
  */
 function matchPrecache(request: Request | string): Promise<Response | undefined> {
   return caches.match(request, { cacheName: CACHE, ignoreVary: true })
+}
+
+/**
+ * Belt and braces for the redirect rule above. Caching `/` rather than
+ * `/index.html` is the fix; this makes the failure impossible to reintroduce
+ * from the serving side, because a host that redirects some other spelling of
+ * the shell would brick the app the same way. Rebuilding the response clears
+ * the `redirected` flag — the body and headers are the ones we cached.
+ */
+function safeForNavigation(response: Response): Response {
+  if (!response.redirected) return response
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  })
 }
