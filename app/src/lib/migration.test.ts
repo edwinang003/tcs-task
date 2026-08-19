@@ -4,6 +4,18 @@ import { activeWorkspace } from './workspace'
 
 const { workspaceId, projectId, sectionId, doneSectionId } = activeWorkspace()
 
+/**
+ * Node's `process`, reached through `globalThis`: `src/` is typed for the
+ * browser, and SPEC §11.3 rule 2 does not spend a dependency on `@types/node`
+ * for two method calls.
+ */
+const nodeProcess = (globalThis as unknown as {
+  process: {
+    on(event: 'unhandledRejection', listener: (reason: unknown) => void): void
+    off(event: 'unhandledRejection', listener: (reason: unknown) => void): void
+  }
+}).process
+
 /** A database as P0a left it: version 1, tasks only, no outbox. */
 async function seedV1(name: string, titles: string[]) {
   const v1 = createDb(name, 1)
@@ -128,5 +140,22 @@ describe('v1 → v2 migration', () => {
     expect(await db.outbox.where('table').equals('tasks').count()).toBe(0)
     expect(await db.projects.count()).toBe(1)
     db.close()
+  })
+
+  it('leaves a version 1 database alone — the seed belongs to version 2', async () => {
+    // `populate` fires for any database created from nothing, including the
+    // version 1 one this test file builds. Seeding a workspace there reaches
+    // for tables the v1 schema does not have, and Dexie reports that as an
+    // unhandled rejection rather than a failed open — a failure that passes
+    // the suite while telling us the seed ran where it should not.
+    const rejections: unknown[] = []
+    const onRejection = (reason: unknown) => rejections.push(reason)
+    nodeProcess.on('unhandledRejection', onRejection)
+
+    await seedV1('lane-migration-v1-only', [])
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    nodeProcess.off('unhandledRejection', onRejection)
+    expect(rejections).toEqual([])
   })
 })

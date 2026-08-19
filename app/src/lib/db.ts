@@ -147,10 +147,12 @@ export function createDb(name: string = DB_NAME, ceiling: 1 | 2 = 2): LaneDb {
         tasks.map((t: { id: string }) => outboxEntry('tasks', t, stamp)),
       )
     })
-  }
 
-  // A database created fresh at v2 never runs an upgrade.
-  db.on('populate', (tx) => seedWorkspace(tx))
+    // A database created fresh at v2 never runs an upgrade. The handler
+    // belongs inside this block: `populate` fires for any database born from
+    // nothing, and a version 1 one has no `projects` table to seed.
+    db.on('populate', (tx) => seedWorkspace(tx))
+  }
 
   return db
 }
