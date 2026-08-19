@@ -11,6 +11,7 @@
  * cursor mid-word, and P0b has no second writer.
  */
 import { useEffect, useRef, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import {
   getTask,
   renameTask,
@@ -18,7 +19,12 @@ import {
   setTaskDue,
   setTaskPriority,
   deleteTask,
+  listProjects,
+  listSections,
+  setTaskProject,
+  setTaskSection,
 } from '../lib/repo'
+import { orderSections } from '../lib/grouping'
 import { pushUndo, type UndoStep } from '../lib/undo'
 
 const PAUSE_MS = 500
@@ -36,6 +42,8 @@ interface Draft {
   dueOn: string
   dueTime: string
   priority: 0 | 1 | 2 | 3
+  projectId: string
+  sectionId: string
 }
 
 export function TaskSheet({
@@ -58,12 +66,20 @@ export function TaskSheet({
         dueOn: task.due_on ?? '',
         dueTime: task.due_time ?? '',
         priority: task.priority,
+        projectId: task.project_id,
+        sectionId: task.section_id,
       })
     })
     return () => {
       live = false
     }
   }, [taskId])
+
+  const projects = useLiveQuery(() => listProjects(), [])
+  const sections = useLiveQuery(
+    () => (draft === null ? Promise.resolve([]) : listSections(draft.projectId)),
+    [draft?.projectId],
+  )
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -192,6 +208,79 @@ export function TaskSheet({
                   {p.label}
                 </button>
               ))}
+            </div>
+
+            <div className="mt-3 flex items-center gap-2">
+              <span className="w-16 shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+                Project
+              </span>
+              <select
+                value={draft.projectId}
+                aria-label="Project"
+                onChange={(e) => {
+                  const projectId = e.target.value
+                  // The section is not carried across: `setTaskProject` lands
+                  // the task in the new project's own first open section, and
+                  // the draft has to agree with the row it just wrote. Until
+                  // that write resolves, `sectionId` is '' — a value no
+                  // <option> has, because the Section select below renders a
+                  // matching disabled placeholder rather than let the browser
+                  // snap to some option that does not describe where the task
+                  // actually is.
+                  setDraft({ ...draft, projectId, sectionId: '' })
+                  commitNow(async () => {
+                    const step = await setTaskProject(taskId, projectId)
+                    const moved = await getTask(taskId)
+                    if (moved !== undefined) {
+                      setDraft((d) =>
+                        d === null ? d : { ...d, sectionId: moved.section_id },
+                      )
+                    }
+                    return step
+                  })
+                }}
+                className="min-h-11 flex-1 rounded-xl border border-black/10 bg-white px-3 text-[15px] text-neutral-900 outline-none focus:border-accent dark:border-white/15 dark:bg-white/5 dark:text-neutral-100"
+              >
+                {(projects ?? []).map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="mt-3 flex items-center gap-2">
+              <span className="w-16 shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+                Section
+              </span>
+              <select
+                value={draft.sectionId}
+                aria-label="Section"
+                disabled={draft.sectionId === ''}
+                onChange={(e) => {
+                  const sectionId = e.target.value
+                  setDraft({ ...draft, sectionId })
+                  // SPEC §4's binding, reached without a drag: choosing Done
+                  // here completes the task, exactly as dragging it there
+                  // would.
+                  commitNow(() => setTaskSection(taskId, sectionId))
+                }}
+                className="min-h-11 flex-1 rounded-xl border border-black/10 bg-white px-3 text-[15px] text-neutral-900 outline-none focus:border-accent disabled:opacity-40 dark:border-white/15 dark:bg-white/5 dark:text-neutral-100"
+              >
+                {draft.sectionId === '' ? (
+                  // The project move is still in flight: no option describes
+                  // this task's section yet, so offer only a placeholder that
+                  // matches the draft's transient '' rather than let the
+                  // browser fall back to selecting whatever option is first.
+                  <option value="" />
+                ) : (
+                  orderSections(sections ?? []).map((section) => (
+                    <option key={section.id} value={section.id}>
+                      {section.name}
+                    </option>
+                  ))
+                )}
+              </select>
             </div>
 
             <div className="mt-6 flex items-center justify-between">

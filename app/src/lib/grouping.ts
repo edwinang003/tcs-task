@@ -15,16 +15,24 @@ export interface SectionGroup {
   tasks: Task[]
 }
 
+/**
+ * The done section comes last however its key sorts: sections created after
+ * the project was made can easily land above it. The sheet's Section picker
+ * reads through here too, so a project's sections are not offered in one order
+ * and drawn in another on the same screen.
+ */
+export function orderSections(sections: Section[]): Section[] {
+  return [
+    ...sections.filter((s) => !s.is_done_section),
+    ...sections.filter((s) => s.is_done_section),
+  ]
+}
+
 export function groupBySection(
   sections: Section[],
   tasks: Task[],
 ): SectionGroup[] {
-  // The done section renders last however its key sorts: sections created
-  // after the project was made can easily land above it.
-  const ordered = [
-    ...sections.filter((s) => !s.is_done_section),
-    ...sections.filter((s) => s.is_done_section),
-  ]
+  const ordered = orderSections(sections)
   if (ordered.length === 0) return []
 
   const groups = new Map(ordered.map((s) => [s.id, [] as Task[]]))
