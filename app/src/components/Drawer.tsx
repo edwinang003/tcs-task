@@ -13,6 +13,7 @@ import { addProject } from '../lib/repo'
 import { openProject } from '../lib/nav'
 import { useOpenProject } from '../lib/useOpenProject'
 import { pushUndo } from '../lib/undo'
+import { reportProblem } from '../lib/problems'
 
 export function Drawer({
   open,
@@ -29,8 +30,16 @@ export function Drawer({
     const name = adding.trim()
     if (!name) return
     setAdding('')
-    const { id, undo } = await addProject(name)
-    pushUndo(undo)
+    let id: string
+    try {
+      const created = await addProject(name)
+      id = created.id
+      pushUndo(created.undo)
+    } catch (error) {
+      setAdding(name)
+      reportProblem('Project not added', error)
+      return
+    }
     openProject(id)
     onClose()
   }
