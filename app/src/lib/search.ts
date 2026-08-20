@@ -104,6 +104,15 @@ export function excerptAround(notes: string, want: string[]): string | null {
 /**
  * Every live task matching every term, title band first.
  *
+ * **No terms means no text constraint, not no results.** With an empty
+ * query every live task lands in the title band with a null excerpt, which
+ * is what lets a query made only of 9b's chips run through this same
+ * function. The alternative was a second listing path in the view, and it
+ * would have had to reimplement the two rules below — the failure mode when
+ * those drift is an archived project's tasks showing up in one kind of
+ * query but not the other. Whether an empty query is worth rendering is the
+ * caller's decision; `SearchList` makes it with `terms` and `hasAny`.
+ *
  * `projects` is the list the drawer reads, so an archived project's tasks are
  * absent for the same reason they are absent from Today: the archive is one
  * rule with one source. Completed tasks are *not* excluded — see the design,
@@ -115,10 +124,6 @@ export function search(
   projects: Project[],
 ): Hit[] {
   const want = terms(query)
-  // Before touching the array: an empty query matches nothing, and this is
-  // also the state the view spends most of its life in — an open field.
-  if (want.length === 0) return []
-
   const liveProjects = new Set(projects.map((project) => project.id))
   const titleBand: Hit[] = []
   const notesBand: Hit[] = []
