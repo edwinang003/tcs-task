@@ -77,6 +77,7 @@ async function seedWorkspace(tx: Transaction): Promise<void> {
     name: 'Inbox',
     color: null,
     icon: null,
+    default_view: 'list',
     position: 'a0',
     archived_at: null,
     ...sync,
@@ -119,7 +120,7 @@ async function seedWorkspace(tx: Transaction): Promise<void> {
  * database without importing Dexie itself (SPEC §11.3 rule 1). Production
  * never passes it.
  */
-export function createDb(name: string = DB_NAME, ceiling: 1 | 2 = 2): LaneDb {
+export function createDb(name: string = DB_NAME, ceiling: 1 | 2 | 3 = 3): LaneDb {
   const db = new Dexie(name) as LaneDb
 
   db.version(1).stores({
@@ -152,6 +153,19 @@ export function createDb(name: string = DB_NAME, ceiling: 1 | 2 = 2): LaneDb {
     // belongs inside this block: `populate` fires for any database born from
     // nothing, and a version 1 one has no `projects` table to seed.
     db.on('populate', (tx) => seedWorkspace(tx))
+  }
+
+  if (ceiling >= 3) {
+    // No `stores` call: `default_view` is not indexed, so the schema is
+    // unchanged and Dexie carries every table forward. Only the data moves.
+    db.version(3).upgrade(async (tx) => {
+      await tx
+        .table('projects')
+        .toCollection()
+        .modify((project: { default_view?: string }) => {
+          project.default_view ??= 'list'
+        })
+    })
   }
 
   return db

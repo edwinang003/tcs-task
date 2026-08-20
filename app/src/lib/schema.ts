@@ -50,6 +50,14 @@ export interface Project extends SyncColumns {
   name: string
   color: string | null
   icon: string | null
+  /**
+   * SPEC §4.1: the workspace-wide *initial* view for this project. The live
+   * per-device toggle is `lib/view.ts` over local storage and is deliberately
+   * not synced — switching to board on the tablet must not switch the phone.
+   * This column is only the starting point a device inherits before it has an
+   * opinion of its own.
+   */
+  default_view: 'list' | 'board'
   /** Fractional index, a string (SPEC §4.2). */
   position: string
   /** SPEC §4.4: archiving is the safe default the UI nudges toward. */

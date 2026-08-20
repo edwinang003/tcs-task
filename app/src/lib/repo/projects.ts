@@ -57,6 +57,7 @@ export async function addProject(
     name: trimmed,
     color: null,
     icon: null,
+    default_view: 'list',
     position: generateKeyBetween(last?.position ?? null, null),
     archived_at: null,
     updated_at: now(),

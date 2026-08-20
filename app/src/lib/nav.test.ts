@@ -15,6 +15,7 @@ function project(id: string): Project {
     name: id,
     color: null,
     icon: null,
+    default_view: 'list',
     position: 'a0',
     archived_at: null,
     updated_at: '2026-08-18T00:00:00.000Z',

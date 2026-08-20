@@ -8,11 +8,13 @@ describe('schema', () => {
     dbs.length = 0
   })
 
-  it('is at version 2 with the three new tables', async () => {
+  it('is at version 3, with the four tables', async () => {
+    // Version 3 adds no table and no index — it backfills `default_view` onto
+    // project rows the previous build wrote, so the table list is version 2's.
     const db = createDb('lane-schema-test')
     dbs.push(db)
     await db.open()
-    expect(db.verno).toBe(2)
+    expect(db.verno).toBe(3)
     expect(db.tables.map((t) => t.name).sort()).toEqual([
       'outbox',
       'projects',

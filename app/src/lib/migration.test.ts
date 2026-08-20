@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { createDb } from './db'
 import { activeWorkspace } from './workspace'
+import type { Project } from './schema'
 
 const { workspaceId, projectId, sectionId, doneSectionId } = activeWorkspace()
 
@@ -157,5 +158,59 @@ describe('v1 → v2 migration', () => {
 
     nodeProcess.off('unhandledRejection', onRejection)
     expect(rejections).toEqual([])
+  })
+})
+
+/**
+ * A project row as the previous build wrote it: everything except the column
+ * this slice adds. Cast because the type now requires the field — which is the
+ * point: rows on a phone that installed last week do not have it.
+ */
+async function seedV2Project(name: string, id: string) {
+  const v2 = createDb(name, 2)
+  await v2.open()
+  await v2.projects.add({
+    id,
+    workspace_id: workspaceId,
+    name: 'Work',
+    color: null,
+    icon: null,
+    position: 'a5',
+    archived_at: null,
+    updated_at: '2026-08-10T00:00:00.000Z',
+    deleted_at: null,
+    client_id: 'older-build',
+  } as unknown as Project)
+  const outboxLength = await v2.outbox.count()
+  v2.close()
+  return outboxLength
+}
+
+describe('v2 → v3 migration', () => {
+  it('backfills default_view onto a project written by the previous build', async () => {
+    const name = 'lane-migration-default-view'
+    await seedV2Project(name, 'older-project')
+    const db = createDb(name)
+    await db.open()
+
+    expect(await db.projects.get('older-project')).toMatchObject({
+      name: 'Work',
+      default_view: 'list',
+    })
+    db.close()
+  })
+
+  it('backfills without enqueuing anything to push', async () => {
+    // Deliberately unlike the v2 upgrade, which enqueued tasks because those
+    // rows had never been enqueued at all (SPEC §9.1: never drop an entry).
+    // Here the value written is the column's own default on the server, so
+    // there is nothing for a server to learn from being told it.
+    const name = 'lane-migration-default-view-outbox'
+    const before = await seedV2Project(name, 'quiet-project')
+    const db = createDb(name)
+    await db.open()
+
+    expect(await db.outbox.count()).toBe(before)
+    db.close()
   })
 })

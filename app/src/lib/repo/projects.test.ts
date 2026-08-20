@@ -24,6 +24,14 @@ describe('projects', () => {
     expect(sections.filter((s) => s.is_done_section)).toHaveLength(1)
   })
 
+  it('creates a project with the full sync column set, default_view included', async () => {
+    // SPEC §15: every row is created with its full sync column set, so that P1
+    // implements a transport rather than a migration.
+    const { id } = await addProject('Work')
+
+    expect(await db.projects.get(id)).toMatchObject({ default_view: 'list' })
+  })
+
   it('enqueues the project before the sections that reference it', async () => {
     const { id } = await addProject('Work')
     const entries = await db.outbox.toArray()
