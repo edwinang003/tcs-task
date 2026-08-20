@@ -8,7 +8,7 @@ import { TaskSheet } from './components/TaskSheet'
 import { UpdatePrompt } from './components/UpdatePrompt'
 import { Drawer } from './components/Drawer'
 import { renameProject, archiveProject } from './lib/repo'
-import { useOpenProject } from './lib/useOpenProject'
+import { useRoute } from './lib/useRoute'
 import { useInlineRename } from './lib/useInlineRename'
 import { pushUndo } from './lib/undo'
 
@@ -22,7 +22,7 @@ export default function App() {
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
-  const { project, loaded } = useOpenProject()
+  const { route, project, loaded } = useRoute()
 
   const rename = useInlineRename(project?.name ?? '', async (name) => {
     if (project === undefined) return
@@ -88,7 +88,9 @@ export default function App() {
         </header>
 
         <main className="flex-1 overflow-y-auto">
-          <TaskList onOpen={setOpenTaskId} />
+          {route.kind === 'project' && (
+            <TaskList projectId={route.projectId} onOpen={setOpenTaskId} />
+          )}
         </main>
 
         <QuickAdd />

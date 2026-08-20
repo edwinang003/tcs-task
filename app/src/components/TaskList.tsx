@@ -14,13 +14,17 @@ import {
 import { groupBySection } from '../lib/grouping'
 import { resolveDrop } from '../lib/drag'
 import { formatDue, isOverdue } from '../lib/dates'
-import { useOpenProject } from '../lib/useOpenProject'
 import { pushUndo } from '../lib/undo'
 import { SectionHeader } from './SectionHeader'
 import { DragArea, DragGroup, DragItem } from './DraggableList'
 
-export function TaskList({ onOpen }: { onOpen: (id: string) => void }) {
-  const { projectId } = useOpenProject()
+export function TaskList({
+  projectId,
+  onOpen,
+}: {
+  projectId: string
+  onOpen: (id: string) => void
+}) {
   const tasks = useLiveQuery(() => listTasks(projectId), [projectId])
   const sections = useLiveQuery(() => listSections(projectId), [projectId])
   const [doneOpen, setDoneOpen] = useState(false)
