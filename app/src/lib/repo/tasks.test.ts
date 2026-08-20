@@ -3,7 +3,7 @@ import { db } from '../db'
 import {
   addTask, setTaskDone, renameTask, deleteTask, listTasks,
   getTask, setTaskNotes, setTaskDue, setTaskPriority,
-  setTaskSection, setTaskProject,
+  setTaskSection, setTaskProject, dropTaskAt,
   addProject, addSection, doneSectionOf, firstOpenSectionOf,
 } from './index'
 import { activeWorkspace } from '../workspace'
@@ -372,5 +372,72 @@ describe('repo', () => {
     const live = (await db.tasks.toArray()).filter((t) => t.deleted_at === null)
     expect(live.map((t) => t.id).sort()).toEqual([id, laterId].sort())
     expect(new Set(live.map((t) => t.position)).size).toBe(live.length)
+  })
+
+  it('drops a task between its new neighbours', async () => {
+    await addTask('a', inbox)
+    const b = await addTask('b', inbox)
+    const c = await addTask('c', inbox)
+    const section = await firstOpenSectionOf(inbox)
+
+    await dropTaskAt(c.id, section.id, b.id)
+
+    expect((await listTasks(inbox)).map((t) => t.title)).toEqual(['a', 'c', 'b'])
+  })
+
+  it('completes a task dropped into the done section', async () => {
+    // SPEC §4's binding, reached by the third route. The checkbox and the
+    // sheet's picker already go through the same function.
+    const { id } = await addTask('buy milk', inbox)
+    const done = await doneSectionOf(inbox)
+
+    await dropTaskAt(id, done.id, null)
+
+    const moved = await getTask(id)
+    expect(moved!.section_id).toBe(done.id)
+    expect(moved!.completed_at).not.toBeNull()
+  })
+
+  it('reopens a task dragged back out of the done section', async () => {
+    const { id } = await addTask('buy milk', inbox)
+    const done = await doneSectionOf(inbox)
+    const open = await firstOpenSectionOf(inbox)
+    await dropTaskAt(id, done.id, null)
+
+    await dropTaskAt(id, open.id, null)
+
+    const moved = await getTask(id)
+    expect(moved!.completed_at).toBeNull()
+  })
+
+  it('gives two drops racing into one section distinct positions', async () => {
+    // The same race `addTask` was fixed for: the key must be derived inside
+    // the transaction that writes it.
+    const first = await addTask('one', inbox)
+    const second = await addTask('two', inbox)
+    const done = await doneSectionOf(inbox)
+
+    await Promise.all([
+      dropTaskAt(first.id, done.id, null),
+      dropTaskAt(second.id, done.id, null),
+    ])
+
+    const moved = await Promise.all([getTask(first.id), getTask(second.id)])
+    expect(moved[0]!.position).not.toBe(moved[1]!.position)
+  })
+
+  it('undoes a drop back to the section, position and state it came from', async () => {
+    const { id } = await addTask('buy milk', inbox)
+    const before = await getTask(id)
+    const done = await doneSectionOf(inbox)
+
+    const undo = await dropTaskAt(id, done.id, null, { toast: true })
+    expect(undo!.toast).toBe(true)
+    await undo!.apply()
+
+    const after = await getTask(id)
+    expect(after!.section_id).toBe(before!.section_id)
+    expect(after!.position).toBe(before!.position)
+    expect(after!.completed_at).toBeNull()
   })
 })
