@@ -12,6 +12,7 @@ import { listAllTasks, listProjects } from '../lib/repo'
 import { todayAgenda, upcomingAgenda } from '../lib/agenda'
 import { TaskRow } from './TaskRow'
 import { useProgress } from '../lib/useProgress'
+import { useLabels } from '../lib/useLabels'
 
 const EMPTY = {
   today: 'Nothing due today.',
@@ -28,6 +29,7 @@ export function AgendaList({
   const tasks = useLiveQuery(() => listAllTasks(), [])
   const projects = useLiveQuery(() => listProjects(), [])
   const progress = useProgress()
+  const labels = useLabels()
 
   if (tasks === undefined || projects === undefined) {
     // First read from IndexedDB. Deliberately blank rather than a spinner —
@@ -68,6 +70,7 @@ export function AgendaList({
                   onOpen={onOpen}
                   badge={names.get(task.project_id)}
                   progress={progress.get(task.id)}
+                  labels={labels.get(task.id)}
                 />
               </li>
             ))}

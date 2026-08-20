@@ -19,8 +19,9 @@
 import { setTaskDone, deleteTask } from '../lib/repo'
 import { formatDue, isOverdue } from '../lib/dates'
 import { pushUndo } from '../lib/undo'
-import type { Task } from '../lib/schema'
+import type { Task, Label } from '../lib/schema'
 import type { Progress } from '../lib/progress'
+import { LabelDots } from './LabelDots'
 
 export function TaskRow({
   task,
@@ -29,6 +30,7 @@ export function TaskRow({
   handle,
   hidesOnComplete = false,
   progress,
+  labels,
 }: {
   task: Task
   onOpen: (id: string) => void
@@ -36,6 +38,8 @@ export function TaskRow({
   badge?: string
   /** How far through its checklist this task is, when it has one. */
   progress?: Progress
+  /** The labels this task carries, when it has any. */
+  labels?: Label[]
   /** dnd-kit's grip props, in the list that can be reordered. */
   handle?: Record<string, unknown>
   /** Whether ticking the box takes the row off this screen. */
@@ -95,6 +99,7 @@ export function TaskRow({
             {progress.done}/{progress.total}
           </span>
         )}
+        <LabelDots labels={labels} />
         {badge !== undefined && (
           <span className="ml-2 whitespace-nowrap text-xs text-neutral-400 dark:text-neutral-500">
             {badge}
