@@ -15,11 +15,11 @@
  */
 import { useState } from 'react'
 import { addProject } from '../lib/repo'
-import { openProject, openView, openLabel } from '../lib/nav'
-import { dotClasses } from '../lib/labelling'
+import { openProject, openView } from '../lib/nav'
 import { useRoute } from '../lib/useRoute'
 import { pushUndo } from '../lib/undo'
 import { reportProblem } from '../lib/problems'
+import { LabelRow } from './LabelRow'
 
 export function Drawer({
   open,
@@ -127,30 +127,12 @@ export function Drawer({
                 whichever list grows without limit pushes the other off it. */}
             <ul className="max-h-48 shrink-0 overflow-y-auto">
               {labels.map((label) => (
-                <li key={label.id}>
-                  <button
-                    type="button"
-                    aria-current={label.id === openLabelId ? 'page' : undefined}
-                    onClick={() => {
-                      openLabel(label.id)
-                      onClose()
-                    }}
-                    className={
-                      'flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left ' +
-                      (label.id === openLabelId
-                        ? 'bg-accent/10 font-medium text-neutral-900 dark:text-neutral-100'
-                        : 'text-neutral-600 dark:text-neutral-300')
-                    }
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={
-                        'size-2 shrink-0 rounded-full ' + dotClasses(label.color)
-                      }
-                    />
-                    <span className="truncate">{label.name}</span>
-                  </button>
-                </li>
+                <LabelRow
+                  key={label.id}
+                  label={label}
+                  current={label.id === openLabelId}
+                  onNavigate={onClose}
+                />
               ))}
             </ul>
           </>

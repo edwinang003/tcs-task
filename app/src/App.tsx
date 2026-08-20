@@ -9,9 +9,8 @@ import { UpdatePrompt } from './components/UpdatePrompt'
 import { Drawer } from './components/Drawer'
 import { AgendaList } from './components/AgendaList'
 import { LabelList } from './components/LabelList'
-import { LabelHeader } from './components/LabelHeader'
 import { SearchList } from './components/SearchList'
-import { renameProject, archiveProject, renameLabel } from './lib/repo'
+import { renameProject, archiveProject } from './lib/repo'
 import { useRoute } from './lib/useRoute'
 import { useView } from './lib/useView'
 import { useInlineRename } from './lib/useInlineRename'
@@ -37,15 +36,7 @@ export default function App() {
   const { route, project, label, loaded } = useRoute()
   const { view, setView } = useView(project)
 
-  // One session for both, because only one of them can be open at a time and
-  // two hooks would each hold their own `renaming` flag — leaving a stale one
-  // armed when the route changes underneath it.
-  const renameable = project ?? label
-  const rename = useInlineRename(renameable?.name ?? '', async (name) => {
-    if (route.kind === 'label' && label !== undefined) {
-      pushUndo(await renameLabel(label.id, name))
-      return
-    }
+  const rename = useInlineRename(project?.name ?? '', async (name) => {
     if (project === undefined) return
     pushUndo(await renameProject(project.id, name))
   })
@@ -87,19 +78,15 @@ export default function App() {
             >
               ☰
             </button>
-            {rename.renaming && renameable !== undefined ? (
+            {rename.renaming && project !== undefined ? (
               <input
                 {...rename.inputProps}
-                aria-label={
-                  route.kind === 'label' ? 'Label name' : 'Project name'
-                }
+                aria-label="Project name"
                 className="min-h-11 flex-1 bg-transparent text-lg font-semibold tracking-tight text-neutral-900 outline-none dark:text-neutral-100"
               />
             ) : (
               <h1
-                onDoubleClick={
-                  renameable !== undefined ? rename.start : undefined
-                }
+                onDoubleClick={project !== undefined ? rename.start : undefined}
                 className="flex-1 truncate text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100"
               >
                 {title}
@@ -148,9 +135,6 @@ export default function App() {
                   Archive
                 </button>
               </>
-            )}
-            {route.kind === 'label' && label !== undefined && (
-              <LabelHeader label={label} rename={rename} />
             )}
             <InstallButton />
           </div>
