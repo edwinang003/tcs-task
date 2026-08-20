@@ -15,11 +15,15 @@
  */
 import { useMemo, useState } from 'react'
 import { search } from '../lib/search'
+import { NO_FILTERS } from '../lib/filters'
+import type { Filters } from '../lib/filters'
 import { useCrossProject } from '../lib/useCrossProject'
 import { CrossProjectRows } from './CrossProjectRows'
+import { FilterChips } from './FilterChips'
 
 export function SearchList({ onOpen }: { onOpen: (id: string) => void }) {
   const [query, setQuery] = useState('')
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS)
   const cx = useCrossProject()
 
   const hits = useMemo(
@@ -50,6 +54,13 @@ export function SearchList({ onOpen }: { onOpen: (id: string) => void }) {
         aria-label="Search"
         enterKeyHint="search"
         className="min-h-11 w-full rounded-xl bg-black/5 px-3 text-neutral-900 outline-none placeholder:text-neutral-400 dark:bg-white/10 dark:text-neutral-100 dark:placeholder:text-neutral-500"
+      />
+
+      <FilterChips
+        filters={filters}
+        onChange={setFilters}
+        projects={cx.projects}
+        labels={cx.allLabels}
       />
 
       {!typed ? (
