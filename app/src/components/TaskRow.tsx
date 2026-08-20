@@ -20,6 +20,7 @@ import { setTaskDone, deleteTask } from '../lib/repo'
 import { formatDue, isOverdue } from '../lib/dates'
 import { pushUndo } from '../lib/undo'
 import type { Task } from '../lib/schema'
+import type { Progress } from '../lib/progress'
 
 export function TaskRow({
   task,
@@ -27,11 +28,14 @@ export function TaskRow({
   badge,
   handle,
   hidesOnComplete = false,
+  progress,
 }: {
   task: Task
   onOpen: (id: string) => void
   /** The project's name, in views that span more than one project. */
   badge?: string
+  /** How far through its checklist this task is, when it has one. */
+  progress?: Progress
   /** dnd-kit's grip props, in the list that can be reordered. */
   handle?: Record<string, unknown>
   /** Whether ticking the box takes the row off this screen. */
@@ -81,6 +85,14 @@ export function TaskRow({
             }
           >
             {due}
+          </span>
+        )}
+        {progress !== undefined && progress.total > 0 && (
+          // SPEC §2 takes "a card can open into detail — notes, checklist,
+          // labels — without demanding it" from Trello. This is the half of
+          // that sentence that does the work: the offer, without the opening.
+          <span className="ml-2 whitespace-nowrap text-xs tabular-nums text-neutral-400 dark:text-neutral-500">
+            {progress.done}/{progress.total}
           </span>
         )}
         {badge !== undefined && (

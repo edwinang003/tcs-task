@@ -11,6 +11,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { listAllTasks, listProjects } from '../lib/repo'
 import { todayAgenda, upcomingAgenda } from '../lib/agenda'
 import { TaskRow } from './TaskRow'
+import { useProgress } from '../lib/useProgress'
 
 const EMPTY = {
   today: 'Nothing due today.',
@@ -26,6 +27,7 @@ export function AgendaList({
 }) {
   const tasks = useLiveQuery(() => listAllTasks(), [])
   const projects = useLiveQuery(() => listProjects(), [])
+  const progress = useProgress()
 
   if (tasks === undefined || projects === undefined) {
     // First read from IndexedDB. Deliberately blank rather than a spinner —
@@ -65,6 +67,7 @@ export function AgendaList({
                   task={task}
                   onOpen={onOpen}
                   badge={names.get(task.project_id)}
+                  progress={progress.get(task.id)}
                 />
               </li>
             ))}
