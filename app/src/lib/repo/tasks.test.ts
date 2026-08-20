@@ -5,6 +5,7 @@ import {
   getTask, setTaskNotes, setTaskDue, setTaskPriority,
   setTaskSection, setTaskProject, dropTaskAt,
   addProject, addSection, doneSectionOf, firstOpenSectionOf,
+  addChecklistItem, listChecklistItems,
 } from './index'
 import { activeWorkspace } from '../workspace'
 
@@ -502,4 +503,42 @@ describe('repo', () => {
 
     expect(undo!.toast).toBe(true)
   })
+
+  it("tombstones a task's checklist items along with the task", async () => {
+    // SPEC §4.4 decides this one level up — deleting a project tombstones its
+    // sections, tasks and checklist items — and the reasoning carries down: an
+    // item whose task is gone is unreachable, and leaving it live means P1
+    // pushes rows for a task the server has been told to forget.
+    const { id } = await addTask('pack for the trip', inbox)
+    await addChecklistItem(id, 'passport')
+    await addChecklistItem(id, 'tickets')
+
+    await deleteTask(id)
+
+    expect(await listChecklistItems(id)).toHaveLength(0)
+    expect(await db.checklist_items.count()).toBe(2)
+  })
+
+  it('brings the task and its items back as one undo', async () => {
+    const { id } = await addTask('pack for the trip', inbox)
+    await addChecklistItem(id, 'passport')
+
+    const step = await deleteTask(id)
+    await step?.apply()
+
+    expect(await listTasks(inbox)).toHaveLength(1)
+    expect(await listChecklistItems(id)).toHaveLength(1)
+  })
+
+  it("leaves another task's items alone", async () => {
+    const { id: trip } = await addTask('pack for the trip', inbox)
+    const { id: report } = await addTask('write the report', inbox)
+    await addChecklistItem(trip, 'passport')
+    await addChecklistItem(report, 'outline')
+
+    await deleteTask(trip)
+
+    expect(await listChecklistItems(report)).toHaveLength(1)
+  })
+
 })

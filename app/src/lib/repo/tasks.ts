@@ -2,9 +2,10 @@ import { db, MIN_KEY, MAX_KEY } from '../db'
 import { uuidv7 } from '../ids'
 import { clientId } from '../device'
 import { activeWorkspace } from '../workspace'
-import { create, write, batch, now } from './write'
+import { create, write, batch, composite, now } from './write'
 import { doneSectionOf, firstOpenSectionOf, getSection } from './sections'
 import { appendPositionIn, positionBeforeIn } from './positions'
+import { listChecklistItems } from './checklist'
 import type { Task, Section } from '../schema'
 import type { UndoStep } from '../undo'
 
@@ -220,11 +221,35 @@ export function renameTask(id: string, title: string): Promise<UndoStep | null> 
  * SPEC §9: deletions are soft. The row stays as a tombstone so that a device
  * offline for a week learns about the deletion instead of resurrecting it.
  *
+ * The task's checklist items go with it, in the same transaction. SPEC §4.4
+ * decides this one level up — deleting a project tombstones its sections,
+ * tasks and checklist items — and the reasoning is unchanged here: an item
+ * whose task is gone is unreachable, and leaving it live means P1 pushes
+ * `checklist_items` rows for a row the server has been told to forget.
+ *
  * The only mutation that takes its result off the screen, and so the only one
  * that raises a toast rather than relying on the keyboard.
  */
-export function deleteTask(id: string): Promise<UndoStep | null> {
-  return write('tasks', id, { deleted_at: now() }, 'Task deleted', true)
+export async function deleteTask(id: string): Promise<UndoStep | null> {
+  return batch(['tasks', 'checklist_items'], async () => {
+    const items = await listChecklistItems(id)
+    const stamp = now()
+
+    const steps: (UndoStep | null)[] = [
+      await write('tasks', id, { deleted_at: stamp }, 'Task deleted'),
+    ]
+    for (const item of items) {
+      steps.push(
+        await write('checklist_items', item.id, { deleted_at: stamp }, 'Task deleted'),
+      )
+    }
+
+    // One `deleted_at` for the whole gesture, so the tombstones agree about
+    // when the task went away. `composite` reverses newest-first, which is
+    // immaterial here — clearing `deleted_at` is order-free — but it is the
+    // order `deleteSection` established and there is no reason to differ.
+    return composite('Task deleted', steps, true)
+  })
 }
 
 /**
