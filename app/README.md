@@ -8,7 +8,8 @@ or a board, toggled from the header and remembered per project and per device â€
 the same sections, as headers or as columns, with Done as the last column you
 can drag a card into to complete it.
 
-Two views sit above the projects: **Today**, with overdue pinned above what is due today,
+Two views sit above the projects: **Today**, with overdue pinned above what
+is due today,
 and **Upcoming**, the next seven days grouped by day â€” both across every
 project, each row named with the project it came from, and the view you were in
 survives a reload. A ticked row stays where it is rather than vanishing, because
