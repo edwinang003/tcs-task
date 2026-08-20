@@ -3,8 +3,12 @@
 The client. See [`../docs/SPEC.md`](../docs/SPEC.md) for the design; section
 numbers in code comments refer to it.
 
-Currently at **P0b slice 5 — Today and Upcoming** (SPEC §13). Two views sit
-above the projects now: **Today**, with overdue pinned above what is due today,
+Currently at **P0b slice 6 — list ⇄ board** (SPEC §13). A project is a list
+or a board, toggled from the header and remembered per project and per device —
+the same sections, as headers or as columns, with Done as the last column you
+can drag a card into to complete it.
+
+Two views sit above the projects: **Today**, with overdue pinned above what is due today,
 and **Upcoming**, the next seven days grouped by day — both across every
 project, each row named with the project it came from, and the view you were in
 survives a reload. A ticked row stays where it is rather than vanishing, because
@@ -103,6 +107,7 @@ src/
     device.ts               per-device id, no user identity (SPEC §12 item 7)
     workspace.ts            the active workspace (SPEC §12.3 item 1)
     nav.ts                  the open route, persisted (no router)
+    view.ts                 list or board, per project, per device (SPEC §4.1)
     undo.ts                 the single-step undo store (SPEC §4.5)
     dates.ts                due-date formatting and the overdue predicate
     grouping.ts             tasks into sections, incl. SPEC §4.4's orphan rule
