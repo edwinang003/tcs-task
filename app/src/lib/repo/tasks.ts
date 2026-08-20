@@ -8,22 +8,39 @@ import { appendPositionIn, positionBeforeIn } from './positions'
 import type { Task, Section } from '../schema'
 import type { UndoStep } from '../undo'
 
-/** Rows the list view shows: not deleted, in this project, in order. */
-export async function listTasks(projectId: string): Promise<Task[]> {
+/**
+ * Every live task in the workspace, in position order.
+ *
+ * One index read serves both this and `listTasks`: Today and Upcoming span
+ * every project, so a second index keyed by project would be a second thing to
+ * keep correct for no measured gain.
+ */
+export async function listAllTasks(): Promise<Task[]> {
   const { workspaceId } = activeWorkspace()
   const rows = await db.tasks
     .where('[workspace_id+position]')
     .between([workspaceId, MIN_KEY], [workspaceId, MAX_KEY])
     .toArray()
-  // Filtered rather than indexed by project: slice 4's Today and Upcoming span
-  // every project and want this same workspace-wide read, so a second index
-  // would be a second thing to keep correct for no measured gain.
-  return rows.filter((t) => t.deleted_at === null && t.project_id === projectId)
+  // SPEC §9: deletions are soft, so tombstones live in the table and are
+  // filtered by the reader — never by the query that syncs them.
+  return rows.filter((t) => t.deleted_at === null)
+}
+
+/** Rows the list view shows: not deleted, in this project, in order. */
+export async function listTasks(projectId: string): Promise<Task[]> {
+  const rows = await listAllTasks()
+  return rows.filter((t) => t.project_id === projectId)
 }
 
 export async function addTask(
   title: string,
   projectId: string,
+  // A task captured from Today arrives dated, so it appears where it was
+  // typed. Written in the create rather than in a second write: a follow-up
+  // `setTaskDue` would append a second outbox entry for one user action and,
+  // because the undo store holds a single step (SPEC §4.5), would push a step
+  // over the create's own — so the undo would clear the date and leave the task.
+  options: { dueOn?: string | null } = {},
 ): Promise<{ id: string; undo: UndoStep }> {
   const trimmed = title.trim()
   if (!trimmed) throw new Error('refusing to create a task with no title')
@@ -43,7 +60,7 @@ export async function addTask(
       section_id: section.id,
       title: trimmed,
       notes: null,
-      due_on: null,
+      due_on: options.dueOn ?? null,
       due_time: null,
       reminder_at: null,
       reminder_sent_at: null,
