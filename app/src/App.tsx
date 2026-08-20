@@ -10,6 +10,7 @@ import { Drawer } from './components/Drawer'
 import { AgendaList } from './components/AgendaList'
 import { LabelList } from './components/LabelList'
 import { LabelHeader } from './components/LabelHeader'
+import { SearchList } from './components/SearchList'
 import { renameProject, archiveProject, renameLabel } from './lib/repo'
 import { useRoute } from './lib/useRoute'
 import { useView } from './lib/useView'
@@ -165,11 +166,7 @@ export default function App() {
           ) : route.kind === 'label' ? (
             <LabelList labelId={route.labelId} onOpen={setOpenTaskId} />
           ) : route.kind === 'search' ? (
-            // The route exists and the header names it; the view itself is
-            // the next commit. An empty main is the honest intermediate
-            // state — the alternative is widening `Route` and `AgendaList`
-            // in one step, which is two reviews in one diff.
-            null
+            <SearchList onOpen={setOpenTaskId} />
           ) : (
             <AgendaList kind={route.kind} onOpen={setOpenTaskId} />
           )}

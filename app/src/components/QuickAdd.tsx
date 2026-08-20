@@ -64,7 +64,12 @@ export function QuickAdd() {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Add a task"
-          autoFocus
+          // Everywhere but search, where the view's own field is the point
+          // of being there. This form sits after <main> in the DOM, so an
+          // unconditional autoFocus wins on a cold start into that route and
+          // the two paths in disagree: arriving from the drawer focuses the
+          // search box, reopening the installed app focuses this one.
+          autoFocus={route.kind !== 'search'}
           enterKeyHint="done"
           autoComplete="off"
           autoCapitalize="sentences"

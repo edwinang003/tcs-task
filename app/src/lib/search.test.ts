@@ -166,12 +166,27 @@ describe('excerptAround', () => {
     ).toBe('first line second line about rent')
   })
 
-  it('clips to a window around the match, ellipsing both ends', () => {
-    // 80 characters, beginning 24 before the match: enough lead-in to read as
-    // a sentence, short enough for one line at 390px.
+  it('clips to a window that begins at a word, ellipsing both ends', () => {
+    // 80 characters, starting no more than 24 before the match and then
+    // forward to the next word: an excerpt opening mid-word ("…s morning")
+    // reads as a rendering fault, which is what a phone showed the moment
+    // this ran against real notes. The tail may still cut a word — a clipped
+    // ending is ordinary, a clipped beginning is not.
+    const notes =
+      'Ring the landlord on Monday morning about the rent, and ask whether ' +
+      'the boiler service ever happened last winter.'
+    expect(excerptAround(notes, ['rent'])).toBe(
+      '…morning about the rent, and ask whether the boiler service ever happened last wi…',
+    )
+  })
+
+  it('gives up its lead-in rather than opening mid-word', () => {
+    // No word boundary between the window's start and the match, so there is
+    // nothing to snap to that does not run past the match itself. The
+    // excerpt starts at the match instead of inside the blob before it.
     const notes = 'x'.repeat(100) + ' rent ' + 'y'.repeat(100)
     expect(excerptAround(notes, ['rent'])).toBe(
-      '…' + 'x'.repeat(23) + ' rent ' + 'y'.repeat(51) + '…',
+      '…rent ' + 'y'.repeat(75) + '…',
     )
   })
 
