@@ -6,6 +6,7 @@ import {
   setTaskSection, setTaskProject, dropTaskAt,
   addProject, addSection, doneSectionOf, firstOpenSectionOf,
   addChecklistItem, listChecklistItems,
+  createLabel, tagTask, untagTask, listTaskLabels, listLabels,
 } from './index'
 import { activeWorkspace } from '../workspace'
 
@@ -539,6 +540,47 @@ describe('repo', () => {
     await deleteTask(trip)
 
     expect(await listChecklistItems(report)).toHaveLength(1)
+  })
+
+  it("tombstones the task's labels with it", async () => {
+    // The unstated half of SPEC §4.4. A join row whose task is gone is
+    // unreachable, and leaving it live means P1 pushes rows for a row the
+    // server has been told to forget.
+    const { id: taskId } = await addTask('call the plumber', inbox)
+    const { id: labelId } = (await createLabel('waiting-on'))!
+    await tagTask(taskId, labelId)
+
+    await deleteTask(taskId)
+
+    expect(await listTaskLabels(taskId)).toHaveLength(0)
+    // The label itself is untouched — it is not the task's to delete.
+    expect(await listLabels()).toHaveLength(1)
+  })
+
+  it('brings the labels back when the delete is undone', async () => {
+    const { id: taskId } = await addTask('call the plumber', inbox)
+    const { id: labelId } = (await createLabel('waiting-on'))!
+    await tagTask(taskId, labelId)
+
+    const undo = await deleteTask(taskId)
+    await undo!.apply()
+
+    expect(await listTaskLabels(taskId)).toHaveLength(1)
+  })
+
+  it('does not resurrect a label removed before the delete', async () => {
+    const { id: taskId } = await addTask('call the plumber', inbox)
+    const { id: kept } = (await createLabel('waiting-on'))!
+    const { id: dropped } = (await createLabel('errand'))!
+    await tagTask(taskId, kept)
+    await tagTask(taskId, dropped)
+    await untagTask(taskId, dropped)
+
+    const undo = await deleteTask(taskId)
+    await undo!.apply()
+
+    const links = await listTaskLabels(taskId)
+    expect(links.map((l) => l.label_id)).toEqual([kept])
   })
 
 })
