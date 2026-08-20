@@ -448,7 +448,7 @@ Consequences for the build:
 3. **Reminders go through Web Push, and on Android that is FCM** — the same transport a native Android app uses. See §10.
 4. **Android is the capture device; the Mac is the organizing device.** Share-target and one-handed quick add matter on Android. Keyboard shortcuts, multi-select, and drag-heavy board reorganizing matter on the Mac. Design each interaction for the device it actually happens on.
 5. **Storage persistence is reliable here.** Still call `navigator.storage.persist()` on first run, and still treat the server as the durable copy.
-6. **Drag on a phone is awkward regardless of platform.** Use `dnd-kit` for real touch support, always offer a non-drag "Move to…" fallback, and default to list view at phone widths. The tablet is wide enough for board view; the phone mostly isn't.
+6. **Drag on a phone is awkward regardless of platform.** Use `dnd-kit` for real touch support and always offer a non-drag "Move to…" fallback. This rule also predicted that the phone would want list view by default; P0b settled it the other way. `dnd-kit`'s touch sensor makes the board genuinely usable at 390px, one column at a time, and the columns are the sections you already think in. **The board is the default everywhere**, phone included; the list is one tap away, and the choice is remembered per device (§4.1).
 
 ---
 
@@ -1046,7 +1046,8 @@ role checks in the UI. Only start this when a second real person needs in.
 ## 14. Open questions
 
 Resolved: ~~closed-app reminders~~ (required, §10), ~~native vs. web~~ (web,
-§11.1), ~~iPad~~ (out of scope, A7), ~~offline editing~~ (hard requirement, §9).
+§11.1), ~~iPad~~ (out of scope, A7), ~~offline editing~~ (hard requirement, §9),
+~~board on the phone~~ (yes, §8 rule 6).
 
 Nothing structural is open. What remains is preference, and none of it blocks P0:
 
@@ -1054,7 +1055,7 @@ Nothing structural is open. What remains is preference, and none of it blocks P0
 2. **Managed or self-hosted?** (A5) Needed at the start of P1, not P0.
 3. **Any calendar involvement?** A read-only ICS feed out is cheap; two-way sync is a project of its own and is currently a non-goal.
 4. **Import from anywhere?** If tasks currently live in Google Tasks, Todoist, or Trello, a one-time import is worth an afternoon in P1 — and worth knowing now, because it constrains the schema slightly.
-5. **How much does the board view matter on the phone?** The tablet is wide enough for it; the phone mostly isn't. The P0b touch-drag spike (§13) answers this empirically rather than by argument, which is why it goes first.
+5. ~~**How much does the board view matter on the phone?**~~ **Answered 2026-08-20, by use.** A lot. The P0b touch-drag work made the board usable at 390px, and after a day on the phone the list was no longer worth defaulting to. §8 rule 6 is amended: the board is the default at every width.
 6. **Does the MacBook get reminders too, or only the Android devices?** Cheap either way — `push_subscriptions.reminders_enabled` is per-device — but it changes the default.
 7. **How real is the SaaS future?** (A8) §12.3 buys the cheap insurance either way and nothing there is wasted if the answer is "never". But if it becomes a stated goal rather than a possibility, billing, invites and onboarding stop being non-goals, P3 changes shape, and open question 2 above resolves to *managed* — self-hosting a product you sell is a different job from self-hosting a tool you use.
 
