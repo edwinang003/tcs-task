@@ -158,6 +158,20 @@ same breakpoint at which the drawer stops being an overlay — subscribed throug
 `useSyncExternalStore` so that rotating a tablet re-resolves a project that has
 no stored choice.
 
+### The toggle itself
+
+One button in the header, before Rename, rendered only on project routes — the
+same condition Rename and Archive already carry, and for the same reason a
+button that never does anything is worse than an absent one.
+
+It is a toggle button rather than a two-part segmented control: the phone
+header already holds ☰, the title, Rename, Archive and Install, and a segmented
+control there would push the title to nothing. So a single button labelled
+`Board`, with `aria-pressed` saying whether it is on, filled when it is. The
+label names the thing being toggled rather than the action, because a button
+whose text changes to `List` when pressed reads as two different buttons to a
+screen reader that has just been told the state.
+
 ### `TaskList.tsx` — one component, two layouts
 
 The data half is untouched: same `useLiveQuery` reads, same `groupBySection`,
