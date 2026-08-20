@@ -31,6 +31,7 @@ export function TaskRow({
   hidesOnComplete = false,
   progress,
   labels,
+  excerpt,
 }: {
   task: Task
   onOpen: (id: string) => void
@@ -70,7 +71,11 @@ export function TaskRow({
       <button
         type="button"
         onClick={() => onOpen(task.id)}
-        className="min-h-11 flex-1 text-left"
+        // `min-w-0` is what lets the excerpt's `truncate` do anything: a flex
+        // item defaults to `min-width: auto`, so a nowrap child pushes this
+        // button wider than the row and the line runs off the screen instead
+        // of ending in an ellipsis.
+        className="min-h-11 min-w-0 flex-1 text-left"
       >
         <span
           className={
@@ -105,6 +110,14 @@ export function TaskRow({
         {badge !== undefined && (
           <span className="ml-2 whitespace-nowrap text-xs text-neutral-400 dark:text-neutral-500">
             {badge}
+          </span>
+        )}
+        {excerpt !== undefined && (
+          // A block, so it takes its own line under the title rather than
+          // running on after the badge. `truncate` is the second guard on
+          // row height; `excerptAround` already flattened the newlines.
+          <span className="mt-0.5 block truncate text-xs text-neutral-400 dark:text-neutral-500">
+            {excerpt}
           </span>
         )}
       </button>

@@ -2,9 +2,9 @@
  * Where you are, and where else you could be.
  *
  * An overlay on a phone; pinned open at `lg` and wider, where there is room
- * for it to be a sidebar. Today and Upcoming sit above the project list. Inbox
- * is not among them: it is a project, and making it a second kind of thing
- * would give the app two spellings of one concept.
+ * for it to be a sidebar. Search, Today and Upcoming sit above the project
+ * list. Inbox is not among them: it is a project, and making it a second kind
+ * of thing would give the app two spellings of one concept.
  *
  * Project rename and archive live in the header rather than on these rows, so
  * the drawer stays a place you pass through rather than a control panel.
@@ -71,7 +71,7 @@ export function Drawer({
         style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
       >
         <ul className="pb-2">
-          {(['today', 'upcoming'] as const).map((kind) => (
+          {(['search', 'today', 'upcoming'] as const).map((kind) => (
             <li key={kind}>
               <button
                 type="button"

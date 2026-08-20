@@ -81,8 +81,19 @@ export function excerptAround(notes: string, want: string[]): string | null {
 
   // Pulled back off the end so the last window is a full one rather than a
   // stub, which is what makes the trailing ellipsis mean "there is more".
-  const start = Math.min(Math.max(0, at - LEAD), flat.length - WINDOW)
-  const end = start + WINDOW
+  let start = Math.min(Math.max(0, at - LEAD), flat.length - WINDOW)
+  if (start > 0) {
+    // Then forward to the next word. An excerpt opening mid-word — "…s
+    // morning" — reads as a rendering fault rather than as a quotation, and
+    // a phone showed exactly that the first time this ran against real
+    // notes. Only when the boundary comes before the match: with no space
+    // between here and the word you searched for, the lead-in is worth less
+    // than a legible start, and the excerpt begins at the match itself.
+    const space = flat.indexOf(' ', start)
+    if (space !== -1 && space < at) start = space + 1
+  }
+  // Clamped, because the snap above may have pushed the window off the end.
+  const end = Math.min(start + WINDOW, flat.length)
   return (
     (start > 0 ? '…' : '') +
     flat.slice(start, end) +
