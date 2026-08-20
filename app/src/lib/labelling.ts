@@ -131,3 +131,30 @@ export function labelsByTask(
   }
   return grouped
 }
+
+/**
+ * The tasks carrying one label.
+ *
+ * A `Set` rather than a filtered task list, because the caller has the tasks
+ * already — this is the one fact it is missing, and returning a set keeps the
+ * filter a membership test rather than a nested scan.
+ *
+ * It reads the same `task_labels` rows the dots are built from (design,
+ * decision 7): the label route filters data the app is holding regardless,
+ * which is why `task_labels` carries no `[workspace_id+label_id]` index.
+ */
+export function tasksWithLabel(
+  links: TaskLabel[],
+  labelId: string,
+): Set<string> {
+  const tasks = new Set<string>()
+  for (const link of links) {
+    // SPEC §9: a tombstone is still a row, and the reader filters it. Doing
+    // it here too means a caller reaching past the reader cannot list a task
+    // under a label someone removed from it.
+    if (link.deleted_at !== null) continue
+    if (link.label_id !== labelId) continue
+    tasks.add(link.task_id)
+  }
+  return tasks
+}

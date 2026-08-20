@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { PALETTE, nextColor, dotClasses, labelsByTask } from './labelling'
+import {
+  PALETTE,
+  nextColor,
+  dotClasses,
+  labelsByTask,
+  tasksWithLabel,
+} from './labelling'
 import type { Label, TaskLabel } from './schema'
 
 function label(id: string, name: string, color: string): Label {
@@ -133,5 +139,25 @@ describe('labelsByTask', () => {
     ]
     const map = labelsByTask([link('t1', 'a'), link('t1', 'b')], labels)
     expect(map.get('t1')?.map((l) => l.name)).toEqual(['zulu', 'alpha'])
+  })
+})
+
+describe('tasksWithLabel', () => {
+  it('collects the tasks carrying one label', () => {
+    const links = [link('t1', 'a'), link('t2', 'a'), link('t3', 'b')]
+    expect([...tasksWithLabel(links, 'a')].sort()).toEqual(['t1', 't2'])
+  })
+
+  it('ignores a tombstoned link', () => {
+    // SPEC §9: deletions are soft, so a tombstone is still a row. A task
+    // someone untagged must not appear under the label they removed.
+    const links = [link('t1', 'a', '2026-08-20T00:00:00.000Z')]
+    expect(tasksWithLabel(links, 'a').size).toBe(0)
+  })
+
+  it('is empty for a label nothing carries', () => {
+    // Not an error: a label with no tasks is the ordinary state of one you
+    // just created, and its route renders an empty list rather than failing.
+    expect(tasksWithLabel([link('t1', 'a')], 'unused').size).toBe(0)
   })
 })
