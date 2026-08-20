@@ -3,7 +3,16 @@
 The client. See [`../docs/SPEC.md`](../docs/SPEC.md) for the design; section
 numbers in code comments refer to it.
 
-Currently at **P0b slice 9b — search filters** (SPEC §13). A field finds a task by any
+Currently at **P0b polish — quiet menus, and the board by default**
+(SPEC §13). Rename, delete, archive and recolour moved off the screen and
+behind a `…` on the row they belong to: a section header's, a drawer
+project's, a drawer label's. They were on screen permanently in aid of
+actions used about as often as a project is created, and the project header
+had grown to six controls across 390px. A project now opens as a board
+unless you have told it otherwise — SPEC §8 rule 6 predicted the phone would
+want the list, and a day of using it said otherwise.
+
+Before that, **slice 9b — search filters** (SPEC §13). A field finds a task by any
 words you remember from its title or its notes, across every live project —
 title matches first, then tasks that matched only in their notes, each showing
 the stretch of note that matched. The terms are ANDed rather than matched as
@@ -68,7 +77,7 @@ npm run build    # tsc -b && vite build  → dist/
 npm run preview  # serve dist/ locally
 npm test         # vitest — lib unit tests (ids, order keys, db, migration, outbox,
                  #   repo, grouping, nav, undo, dates, progress, labelling,
-                 #   search, filters)
+                 #   search, filters, menu)
 npm run lint     # oxlint
 npm run icons    # regenerate public/icon-*.png
 ```
@@ -136,6 +145,7 @@ src/
     workspace.ts            the active workspace (SPEC §12.3 item 1)
     nav.ts                  the open route, persisted (no router)
     view.ts                 list or board, per project, per device (SPEC §4.1)
+    menu.ts                 where a … panel goes (pure)
     undo.ts                 the single-step undo store (SPEC §4.5)
     dates.ts                due-date formatting and the overdue predicate
     grouping.ts             tasks into sections, incl. SPEC §4.4's orphan rule
@@ -156,7 +166,10 @@ src/
       labels.ts             cross-project tags, and the join rows (SPEC §4)
   components/               UI
     Drawer.tsx              the three views, then the projects, then labels
-    SectionHeader.tsx       rename, delete, collapse
+    ProjectRow.tsx          one drawer project, and its …
+    LabelRow.tsx            one drawer label, its … and its colours
+    Menu.tsx                the … every row hides its actions behind
+    SectionHeader.tsx       collapse, and a … holding rename and delete
     DraggableList.tsx       the ONLY file importing dnd-kit (SPEC §11.3 rule 1)
     TaskRow.tsx             one row, shared by both lists
     AgendaList.tsx          Today and Upcoming
@@ -168,7 +181,6 @@ src/
     LabelPicker.tsx         the sheet's labels, live-queried
     LabelDots.tsx           a row's labels, as colour only
     LabelList.tsx           one label's tasks, across projects
-    LabelHeader.tsx         rename, recolour, delete
     Toast.tsx               the undo offer and Ctrl+Z
   sw.ts                     hand-written service worker (SPEC §11.2)
 ```
