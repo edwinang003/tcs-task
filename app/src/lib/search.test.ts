@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { search, terms } from './search'
+import { excerptAround, search, terms } from './search'
 import type { Project, Task } from './schema'
 
 function project(id: string): Project {
@@ -148,5 +148,58 @@ describe('search', () => {
   it('carries no excerpt on a title hit', () => {
     const hits = search('rent', [task('t', { title: 'pay rent' })], live)
     expect(hits[0].excerpt).toBeNull()
+  })
+})
+
+describe('excerptAround', () => {
+  it('returns a short note whole, with no ellipses', () => {
+    expect(excerptAround('chase the landlord about rent', ['rent'])).toBe(
+      'chase the landlord about rent',
+    )
+  })
+
+  it('collapses newlines and runs of spaces onto one line', () => {
+    // A note is free text and a row is one line high. Without this a
+    // three-paragraph note would set the row's height.
+    expect(
+      excerptAround('first line\n\n  second line about rent\n', ['rent']),
+    ).toBe('first line second line about rent')
+  })
+
+  it('clips to a window around the match, ellipsing both ends', () => {
+    // 80 characters, beginning 24 before the match: enough lead-in to read as
+    // a sentence, short enough for one line at 390px.
+    const notes = 'x'.repeat(100) + ' rent ' + 'y'.repeat(100)
+    expect(excerptAround(notes, ['rent'])).toBe(
+      '…' + 'x'.repeat(23) + ' rent ' + 'y'.repeat(51) + '…',
+    )
+  })
+
+  it('anchors on the earliest match, not on the first term typed', () => {
+    // With `call plumber` against a note that mentions the plumber two
+    // paragraphs above the call, the useful excerpt is the one that comes
+    // first on the page. The order the words were typed in carries no meaning.
+    const notes = 'plumber ' + 'z'.repeat(200) + ' call'
+    expect(excerptAround(notes, ['call', 'plumber'])).toBe(
+      'plumber ' + 'z'.repeat(72) + '…',
+    )
+  })
+
+  it('returns null when no term occurs', () => {
+    expect(excerptAround('nothing to see here', ['rent'])).toBeNull()
+  })
+})
+
+describe('search excerpts', () => {
+  it('explains a notes-only hit with the matching stretch', () => {
+    const rows = [
+      task('t', {
+        title: 'call the agent',
+        notes: 'chase the landlord about rent',
+      }),
+    ]
+    expect(search('rent', rows, live)[0].excerpt).toBe(
+      'chase the landlord about rent',
+    )
   })
 })

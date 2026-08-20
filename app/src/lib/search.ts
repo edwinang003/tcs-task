@@ -43,6 +43,54 @@ function matchesAll(haystack: string, want: string[]): boolean {
 }
 
 /**
+ * How much of a note the row shows, and how much runs ahead of the match.
+ *
+ * 80 fits one line at 390px without the row's own truncation doing the
+ * clipping instead; 24 is enough lead-in that the excerpt reads as a sentence
+ * rather than starting mid-word.
+ */
+const WINDOW = 80
+const LEAD = 24
+
+/**
+ * The matching stretch of a note, as one line.
+ *
+ * Plain text, with no highlight markup: marking the term inside a string that
+ * has already been clipped means splitting on match boundaries, escaping, and
+ * deciding what a half-cut highlight does — real machinery for emphasis a
+ * phone renders at 13px. The line already answers the question it exists to
+ * answer, which is *why is this row here*.
+ */
+export function excerptAround(notes: string, want: string[]): string | null {
+  // Flattened before the search, so the indices below are indices into the
+  // string that will actually be shown.
+  const flat = notes.replace(/\s+/g, ' ').trim()
+  const hay = flat.toLowerCase()
+
+  let at = -1
+  for (const term of want) {
+    const found = hay.indexOf(term)
+    if (found !== -1 && (at === -1 || found < at)) at = found
+  }
+  // No term in the notes at all. `search` never reaches this — a notes-band
+  // hit needed the notes for at least one term — but a caller handed an
+  // arbitrary pair should get an honest answer rather than the first 80
+  // characters of an unrelated note.
+  if (at === -1) return null
+  if (flat.length <= WINDOW) return flat
+
+  // Pulled back off the end so the last window is a full one rather than a
+  // stub, which is what makes the trailing ellipsis mean "there is more".
+  const start = Math.min(Math.max(0, at - LEAD), flat.length - WINDOW)
+  const end = start + WINDOW
+  return (
+    (start > 0 ? '…' : '') +
+    flat.slice(start, end) +
+    (end < flat.length ? '…' : '')
+  )
+}
+
+/**
  * Every live task matching every term, title band first.
  *
  * `projects` is the list the drawer reads, so an archived project's tasks are
@@ -81,7 +129,7 @@ export function search(
     // Joined with a newline so no term can match across the seam between the
     // two fields and claim a word that exists in neither.
     if (!matchesAll(title + '\n' + task.notes.toLowerCase(), want)) continue
-    notesBand.push({ task, excerpt: null })
+    notesBand.push({ task, excerpt: excerptAround(task.notes, want) })
   }
 
   // Both bands were built in the order `tasks` arrived, which is position
