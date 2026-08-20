@@ -8,6 +8,7 @@ import { TaskSheet } from './components/TaskSheet'
 import { UpdatePrompt } from './components/UpdatePrompt'
 import { Drawer } from './components/Drawer'
 import { AgendaList } from './components/AgendaList'
+import { LabelList } from './components/LabelList'
 import { renameProject, archiveProject } from './lib/repo'
 import { useRoute } from './lib/useRoute'
 import { useView } from './lib/useView'
@@ -30,7 +31,7 @@ export default function App() {
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
-  const { route, project, loaded } = useRoute()
+  const { route, project, label, loaded } = useRoute()
   const { view, setView } = useView(project)
 
   const rename = useInlineRename(project?.name ?? '', async (name) => {
@@ -43,7 +44,12 @@ export default function App() {
       ? loaded
         ? (project?.name ?? 'Lane')
         : ''
-      : TITLES[route.kind]
+      : route.kind === 'label'
+        ? // Blank rather than 'Lane' until the label's own query answers:
+          // the name arrives in a frame or two, and a placeholder that
+          // flashes a different word first reads as the wrong page.
+          (label?.name ?? '')
+        : TITLES[route.kind]
 
   async function archive() {
     if (project === undefined) return
@@ -139,6 +145,8 @@ export default function App() {
               view={view}
               onOpen={setOpenTaskId}
             />
+          ) : route.kind === 'label' ? (
+            <LabelList labelId={route.labelId} onOpen={setOpenTaskId} />
           ) : (
             <AgendaList kind={route.kind} onOpen={setOpenTaskId} />
           )}
