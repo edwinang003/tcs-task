@@ -11,7 +11,13 @@
 
 import Dexie, { type EntityTable, type Transaction } from 'dexie'
 import { SERVER_OWNED_COLUMNS } from './schema'
-import type { Task, Project, Section, OutboxEntry } from './schema'
+import type {
+  Task,
+  Project,
+  Section,
+  ChecklistItem,
+  OutboxEntry,
+} from './schema'
 import { activeWorkspace } from './workspace'
 import { clientId } from './device'
 
@@ -25,6 +31,7 @@ export type LaneDb = Dexie & {
   tasks: EntityTable<Task, 'id'>
   projects: EntityTable<Project, 'id'>
   sections: EntityTable<Section, 'id'>
+  checklist_items: EntityTable<ChecklistItem, 'id'>
   outbox: EntityTable<OutboxEntry, 'seq'>
 }
 
@@ -120,7 +127,10 @@ async function seedWorkspace(tx: Transaction): Promise<void> {
  * database without importing Dexie itself (SPEC §11.3 rule 1). Production
  * never passes it.
  */
-export function createDb(name: string = DB_NAME, ceiling: 1 | 2 | 3 = 3): LaneDb {
+export function createDb(
+  name: string = DB_NAME,
+  ceiling: 1 | 2 | 3 | 4 = 4,
+): LaneDb {
   const db = new Dexie(name) as LaneDb
 
   db.version(1).stores({
@@ -165,6 +175,23 @@ export function createDb(name: string = DB_NAME, ceiling: 1 | 2 | 3 = 3): LaneDb
         .modify((project: { default_view?: string }) => {
           project.default_view ??= 'list'
         })
+    })
+  }
+
+  if (ceiling >= 4) {
+    // The mirror of version 3: that one was an `upgrade` with no `stores`,
+    // because `default_view` is not indexed and only the data moved. This one
+    // is a `stores` with no `upgrade`, because a table that has never existed
+    // has no rows to backfill. Between them they are both halves of a Dexie
+    // migration.
+    //
+    // `[workspace_id+task_id]` serves both access paths on its own: one task's
+    // items is an equality read, and every item in the workspace — what the row
+    // counters need — is a range across the whole second component, the same
+    // trick `listAllTasks` uses over `[workspace_id+position]`.
+    db.version(4).stores({
+      checklist_items:
+        'id, [workspace_id+task_id], [workspace_id+updated_at], deleted_at',
     })
   }
 
