@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../db'
 import {
-  addTask, setTaskDone, renameTask, deleteTask, listTasks,
+  addTask, setTaskDone, renameTask, deleteTask, listTasks, listAllTasks,
   getTask, setTaskNotes, setTaskDue, setTaskPriority,
   setTaskSection, setTaskProject, dropTaskAt,
   addProject, addSection, doneSectionOf, firstOpenSectionOf,
@@ -439,5 +439,48 @@ describe('repo', () => {
     expect(after!.section_id).toBe(before!.section_id)
     expect(after!.position).toBe(before!.position)
     expect(after!.completed_at).toBeNull()
+  })
+
+  it('reads every project at once, in position order', async () => {
+    const other = await addProject('work')
+    await addTask('in inbox', inbox)
+    await addTask('at work', other.id)
+
+    const all = await listAllTasks()
+
+    expect(all.map((t) => t.title).sort()).toEqual(['at work', 'in inbox'])
+  })
+
+  it('leaves tombstones out of the cross-project read', async () => {
+    const { id } = await addTask('buy milk', inbox)
+    await deleteTask(id)
+
+    expect(await listAllTasks()).toEqual([])
+  })
+
+  it('creates a task already dated, in one transaction', async () => {
+    // A second write would append a second outbox entry for one user action
+    // and — because the undo store holds a single step (SPEC §4.5) — would push
+    // a step over the create's own, so the undo would clear the date and leave
+    // the task.
+    const { id } = await addTask('buy milk', inbox, { dueOn: '2026-08-20' })
+
+    const task = await getTask(id)
+    expect(task!.due_on).toBe('2026-08-20')
+    expect(await entriesFor(id)).toHaveLength(1)
+  })
+
+  it('undoes a dated creation whole', async () => {
+    const { id, undo } = await addTask('buy milk', inbox, { dueOn: '2026-08-20' })
+
+    await undo.apply()
+
+    expect((await getTask(id))!.deleted_at).not.toBeNull()
+  })
+
+  it('still creates undated when no date is given', async () => {
+    const { id } = await addTask('buy milk', inbox)
+
+    expect((await getTask(id))!.due_on).toBeNull()
   })
 })
