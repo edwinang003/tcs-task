@@ -26,6 +26,7 @@ import {
 } from '../lib/repo'
 import { orderSections } from '../lib/grouping'
 import { pushUndo, type UndoStep } from '../lib/undo'
+import { Checklist } from './Checklist'
 
 const PAUSE_MS = 500
 
@@ -178,6 +179,11 @@ export function TaskSheet({
                 className="mt-1 w-full resize-y rounded-xl border border-black/10 bg-white p-3 text-[15px] font-normal text-neutral-900 outline-none focus:border-accent dark:border-white/15 dark:bg-white/5 dark:text-neutral-100"
               />
             </label>
+
+            {/* Below Notes and above Due on purpose: notes and a checklist are
+                both "what this task actually involves", while due date,
+                priority, project and section are all "where and when it sits". */}
+            <Checklist taskId={taskId} />
 
             <div className="mt-4 flex items-center gap-2">
               <span className="w-16 shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400">

@@ -95,7 +95,11 @@ export function UndoToast() {
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-0 bottom-20 z-20 flex justify-center px-3"
+      // Above the task sheet's z-30, not below it. Deleting a checklist item
+      // happens with the sheet open and the sheet stays open afterwards, so a
+      // toast behind the backdrop is an undo offer nobody can see — and on a
+      // phone there is no Ctrl+Z to fall back on.
+      className="pointer-events-none fixed inset-x-0 bottom-20 z-40 flex justify-center px-3"
     >
       <div className="pointer-events-auto flex items-center gap-4 rounded-xl bg-neutral-900 py-2 pl-4 pr-2 text-sm text-white shadow-lg dark:bg-neutral-100 dark:text-ink">
         <span>{step.label}</span>
