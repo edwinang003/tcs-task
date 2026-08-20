@@ -3,20 +3,24 @@
 The client. See [`../docs/SPEC.md`](../docs/SPEC.md) for the design; section
 numbers in code comments refer to it.
 
-Currently at **P0b slice 4 — drag to reorder** (SPEC §13). Real projects now,
-each with its own sections: create, rename, archive and switch between them in
-a drawer that is an overlay on a phone and a pinned sidebar on a desktop, and
-the project you were in survives a reload. A task is a real thing — notes, a
-due date and time, a priority — and it lives in a section of a project. Tasks
-are reordered and moved between sections by dragging the grip at the right of
-each row, by touch or by keyboard; the sheet's two pickers do the same thing
-without a drag. Checking a task moves it into that project's Done section,
-collapsed at the foot of the list — and dropping a task there completes it, by
-the same rule read the other way round. That is SPEC §4's binding, and it is
-the point of these slices. Anything you do can be undone. Everything is
-persisted in IndexedDB, installable, and fully functional with no network.
-Every write still records an outbox entry in the same transaction — but there
-is no transport draining it yet. That is P1.
+Currently at **P0b slice 5 — Today and Upcoming** (SPEC §13). Two views sit
+above the projects now: **Today**, with overdue pinned above what is due today,
+and **Upcoming**, the next seven days grouped by day — both across every
+project, each row named with the project it came from, and the view you were in
+survives a reload. A ticked row stays where it is rather than vanishing, because
+a view shows what is incomplete *or completed today*. Real projects, each with
+its own sections: create, rename, archive and switch between them in a drawer
+that is an overlay on a phone and a pinned sidebar on a desktop. A task is a
+real thing — notes, a due date and time, a priority — and it lives in a section
+of a project. Tasks are reordered and moved between sections by dragging the
+grip at the right of each row, by touch or by keyboard; the sheet's two pickers
+do the same thing without a drag. Checking a task moves it into that project's
+Done section, collapsed at the foot of the list — and dropping a task there
+completes it, by the same rule read the other way round. That is SPEC §4's
+binding, and it is the point of these slices. Anything you do can be undone.
+Everything is persisted in IndexedDB, installable, and fully functional with no
+network. Every write still records an outbox entry in the same transaction —
+but there is no transport draining it yet. That is P1.
 
 P0a exists to answer three questions before the other 90% is built:
 
@@ -98,11 +102,12 @@ src/
     schema.ts               row shapes + the sync column set (SPEC §4.1)
     device.ts               per-device id, no user identity (SPEC §12 item 7)
     workspace.ts            the active workspace (SPEC §12.3 item 1)
-    nav.ts                  the open project, persisted (no router)
+    nav.ts                  the open route, persisted (no router)
     undo.ts                 the single-step undo store (SPEC §4.5)
     dates.ts                due-date formatting and the overdue predicate
     grouping.ts             tasks into sections, incl. SPEC §4.4's orphan rule
     drag.ts                 where a drop lands (pure; SPEC §8, §13)
+    agenda.ts               what is due, and when (pure; SPEC §5)
     db.ts                   the ONLY file importing Dexie (SPEC §11.3 rule 1)
     outbox.ts               the coalescing append (SPEC §9.1)
     repo/                   the ONLY write path (SPEC §13 P0b constraint)
@@ -110,9 +115,11 @@ src/
       positions.ts          where a task lands in a section
       tasks.ts · projects.ts · sections.ts
   components/               UI
-    Drawer.tsx              projects
+    Drawer.tsx              the two views, then the projects
     SectionHeader.tsx       rename, delete, collapse
     DraggableList.tsx       the ONLY file importing dnd-kit (SPEC §11.3 rule 1)
+    TaskRow.tsx             one row, shared by both lists
+    AgendaList.tsx          Today and Upcoming
     TaskSheet.tsx           the task editor, auto-saving
     Toast.tsx               the undo offer and Ctrl+Z
   sw.ts                     hand-written service worker (SPEC §11.2)
