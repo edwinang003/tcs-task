@@ -8,14 +8,20 @@
  * §5.1's rule for the quick-add parser is the same rule: a guess that hides
  * itself is worse than no guess.
  *
+ * The chips are the same query and clear the same way. A chip is *not*
+ * hidden the way a stale text query is, which nearly argues for persisting
+ * them; what decides it is the cold start. The OS kills this app
+ * constantly, and coming back to three lit chips you do not remember
+ * setting means your first interaction is undoing state you did not create.
+ *
  * No debounce. The rows are already in memory from the same live queries
  * Today reads, the scan touches two strings per task, and §5 is explicit that
  * this needs no index. A debounce would add latency to the one interaction
  * whose whole value is feeling instant.
  */
 import { useMemo, useState } from 'react'
-import { search } from '../lib/search'
-import { NO_FILTERS } from '../lib/filters'
+import { search, terms } from '../lib/search'
+import { applyFilters, hasAny, NO_FILTERS } from '../lib/filters'
 import type { Filters } from '../lib/filters'
 import { useCrossProject } from '../lib/useCrossProject'
 import { CrossProjectRows } from './CrossProjectRows'
@@ -26,9 +32,21 @@ export function SearchList({ onOpen }: { onOpen: (id: string) => void }) {
   const [filters, setFilters] = useState<Filters>(NO_FILTERS)
   const cx = useCrossProject()
 
+  // Filters first, then text (design, decision 2). `search` keeps its bands,
+  // its ordering and the tombstone and archived-project rules; it simply
+  // sees fewer rows. `applyFilters` never learns what a band is.
+  //
+  // `at` is left at its default here, the way `AgendaList` leaves it: the
+  // date presets are recomputed on every keystroke and every tap, and the
+  // view is remounted on every cold start, so the only way to hold a stale
+  // "today" is to sit on this screen through midnight touching nothing.
+  const narrowed = useMemo(
+    () => applyFilters(cx.tasks, filters, cx.labels),
+    [cx.tasks, filters, cx.labels],
+  )
   const hits = useMemo(
-    () => search(query, cx.tasks, cx.projects),
-    [query, cx.tasks, cx.projects],
+    () => search(query, narrowed, cx.projects),
+    [query, narrowed, cx.projects],
   )
   const excerpts = useMemo(() => {
     const map = new Map<string, string>()
@@ -38,7 +56,10 @@ export function SearchList({ onOpen }: { onOpen: (id: string) => void }) {
     return map
   }, [hits])
 
-  const typed = query.trim().length > 0
+  const words = terms(query).length > 0
+  // A chip alone is a query (decision 1), so "is there anything to show" is
+  // no longer "did they type".
+  const active = words || hasAny(filters)
 
   return (
     <div className="mx-auto max-w-2xl px-3 py-2">
@@ -63,7 +84,7 @@ export function SearchList({ onOpen }: { onOpen: (id: string) => void }) {
         labels={cx.allLabels}
       />
 
-      {!typed ? (
+      {!active ? (
         <p className="px-2 py-8 text-center text-neutral-400 dark:text-neutral-500">
           Search titles and notes.
         </p>
@@ -73,7 +94,14 @@ export function SearchList({ onOpen }: { onOpen: (id: string) => void }) {
         <div className="min-h-32" />
       ) : hits.length === 0 ? (
         <p className="px-2 py-8 text-center text-neutral-400 dark:text-neutral-500">
-          Nothing matches “{query.trim()}”.
+          {words ? (
+            <>Nothing matches “{query.trim()}”.</>
+          ) : (
+            // Naming the chips here would mean composing a sentence out of
+            // up to three kinds of filter, and they are already on screen
+            // above this line with their state on their faces.
+            <>Nothing matches these filters.</>
+          )}
         </p>
       ) : (
         <>
