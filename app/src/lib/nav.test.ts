@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
-  getRoute, openProject, openView, captureTarget, parseStored, resolveProject,
-  subscribe,
+  getRoute, openProject, openView, openLabel, captureTarget, parseStored,
+  resolveProject, resolveLabel, subscribe,
 } from './nav'
 import { activeWorkspace } from './workspace'
-import type { Project } from './schema'
+import type { Project, Label } from './schema'
 
 const inbox = activeWorkspace().projectId
 
@@ -161,6 +161,101 @@ describe('nav', () => {
     expect(captureTarget({ kind: 'upcoming' })).toEqual({
       projectId: inbox,
       dueOn: null,
+    })
+  })
+})
+
+describe('label routes', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('stores a label route under a prefix a uuid cannot produce', () => {
+    // The whole reason for the prefix. A bare uuid already means a project,
+    // so a label uuid stored bare would open a project that does not exist.
+    openLabel('9f1d7c2e-0000-7000-8000-000000000001')
+    expect(localStorage.getItem('lane.route')).toBe(
+      'label:9f1d7c2e-0000-7000-8000-000000000001',
+    )
+    expect(getRoute()).toEqual({
+      kind: 'label',
+      labelId: '9f1d7c2e-0000-7000-8000-000000000001',
+    })
+  })
+
+  it('reads a stored label route back', () => {
+    expect(parseStored('label:abc')).toEqual({ kind: 'label', labelId: 'abc' })
+  })
+
+  it('still reads a bare uuid as a project', () => {
+    // The guarantee that lets this union grow without a migration: a value
+    // written by any previous build keeps meaning what it meant.
+    expect(parseStored('9f1d7c2e-0000-7000-8000-000000000002')).toEqual({
+      kind: 'project',
+      projectId: '9f1d7c2e-0000-7000-8000-000000000002',
+    })
+    expect(parseStored('today')).toEqual({ kind: 'today' })
+  })
+
+  it('does not notify when the same label is opened twice', () => {
+    openLabel('label-1')
+    let calls = 0
+    const off = subscribe(() => calls++)
+    openLabel('label-1')
+    expect(calls).toBe(0)
+    openLabel('label-2')
+    expect(calls).toBe(1)
+    off()
+  })
+
+  it('captures into Inbox, undated and untagged, from a label route', () => {
+    // Auto-tagging is defensible and deliberately not done: nav.ts already
+    // refuses to guess a date for a task typed into Upcoming, and silently
+    // attaching metadata nobody asked for is the same bet. The sheet is one
+    // tap away. `captureTarget` returning no label field is how that is
+    // enforced — there is nothing for QuickAdd to pass on.
+    const target = captureTarget({ kind: 'label', labelId: 'label-1' })
+    expect(target).toEqual({ projectId: inbox, dueOn: null })
+  })
+})
+
+describe('resolveLabel', () => {
+  function label(id: string): Label {
+    return {
+      id,
+      name: id,
+      color: 'rose',
+      workspace_id: activeWorkspace().workspaceId,
+      updated_at: '2026-08-20T00:00:00.000Z',
+      deleted_at: null,
+      client_id: 'test',
+    }
+  }
+
+  it('stays on the label while it still exists', () => {
+    expect(resolveLabel([label('l1')], 'l1')).toEqual({
+      kind: 'label',
+      labelId: 'l1',
+    })
+  })
+
+  it('falls back to Inbox when the label is gone', () => {
+    // Deleted here or on another device — both stop appearing in
+    // `listLabels`, so one branch covers them. It falls back to a *project*
+    // route rather than another label: there is no next-best label, and the
+    // app's floor is Inbox, exactly as `resolveProject` decides.
+    expect(resolveLabel([], 'l1')).toEqual({
+      kind: 'project',
+      projectId: inbox,
+    })
+  })
+
+  it('trusts the stored id while the read has not answered yet', () => {
+    // `undefined` means the query has not returned. Treating it as "gone"
+    // would bounce every reload through Inbox for a frame.
+    expect(resolveLabel(undefined, 'l1')).toEqual({
+      kind: 'label',
+      labelId: 'l1',
     })
   })
 })
