@@ -1,6 +1,13 @@
 /**
  * A section's name, and the two things you can do to it.
  *
+ * Both live behind a … rather than beside the name. Rename and Delete were
+ * on screen on every section of every project, in grey and in red, around
+ * maybe a dozen tasks — eight words of chrome for two actions you use about
+ * twice a month. `TaskRow` hides its × on hover, which is the same
+ * instinct, but hover does not exist on a phone and these two have to stay
+ * reachable there, so the trigger stays and the actions are what hides.
+ *
  * Only the done section collapses: one affordance and one piece of state, and
  * an open section has no reason to hide. The count sits next to the name for
  * the same reason a collapsed Done needs one — it is the only way to see how
@@ -9,6 +16,7 @@
 import { renameSection, deleteSection } from '../lib/repo'
 import { useInlineRename } from '../lib/useInlineRename'
 import { pushUndo } from '../lib/undo'
+import { Menu, MenuItem } from './Menu'
 import type { Section } from '../lib/schema'
 
 export function SectionHeader({
@@ -66,32 +74,37 @@ export function SectionHeader({
           {label}
         </button>
       )}
-      <button
-        type="button"
-        onClick={rename.start}
-        aria-label={`Rename ${section.name}`}
-        className="min-h-11 px-2 text-xs text-neutral-400 dark:text-neutral-500"
-      >
-        Rename
-      </button>
-      {deletable && (
-        <button
-          type="button"
-          onClick={async () => {
-            try {
-              pushUndo(await deleteSection(section.id))
-            } catch {
-              // The row is already gone — a second tap before the live query
-              // caught up. The user asked for it deleted and it is deleted;
-              // there is nothing to say.
-            }
-          }}
-          aria-label={`Delete ${section.name}`}
-          className="min-h-11 px-2 text-xs text-red-600 dark:text-red-400"
-        >
-          Delete
-        </button>
-      )}
+      <Menu label={`Actions for ${section.name}`}>
+        {(close) => (
+          <>
+            <MenuItem
+              onClick={() => {
+                close()
+                rename.start()
+              }}
+            >
+              Rename
+            </MenuItem>
+            {deletable && (
+              <MenuItem
+                danger
+                onClick={async () => {
+                  close()
+                  try {
+                    pushUndo(await deleteSection(section.id))
+                  } catch {
+                    // The row is already gone — a second tap before the
+                    // live query caught up. The user asked for it deleted
+                    // and it is deleted; there is nothing to say.
+                  }
+                }}
+              >
+                Delete
+              </MenuItem>
+            )}
+          </>
+        )}
+      </Menu>
     </div>
   )
 }
