@@ -28,6 +28,8 @@ export interface CrossProject {
   names: Map<string, string>
   progress: Map<string, Progress>
   labels: Map<string, Label[]>
+  /** Every live label in the workspace — the filter row's chips. */
+  allLabels: Label[]
   /** False until both reads have answered once. */
   loaded: boolean
 }
@@ -41,7 +43,7 @@ export function useCrossProject(): CrossProject {
   const tasks = useLiveQuery(() => listAllTasks(), [])
   const projects = useLiveQuery(() => listProjects(), [])
   const progress = useProgress()
-  const labels = useLabels()
+  const labelling = useLabels()
 
   const names = useMemo(
     () => new Map((projects ?? NO_PROJECTS).map((p) => [p.id, p.name])),
@@ -53,7 +55,8 @@ export function useCrossProject(): CrossProject {
     projects: projects ?? NO_PROJECTS,
     names,
     progress,
-    labels,
+    labels: labelling.byTask,
+    allLabels: labelling.all,
     loaded: tasks !== undefined && projects !== undefined,
   }
 }

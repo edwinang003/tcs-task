@@ -40,7 +40,7 @@ export function TaskList({
   const tasks = useLiveQuery(() => listTasks(projectId), [projectId])
   const sections = useLiveQuery(() => listSections(projectId), [projectId])
   const progress = useProgress()
-  const labels = useLabels()
+  const labels = useLabels().byTask
   const [doneOpen, setDoneOpen] = useState(false)
   const [adding, setAdding] = useState('')
   const [dragging, setDragging] = useState<string | null>(null)
