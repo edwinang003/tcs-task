@@ -11,7 +11,7 @@
 import { useState } from 'react'
 import { addProject } from '../lib/repo'
 import { openProject } from '../lib/nav'
-import { useOpenProject } from '../lib/useOpenProject'
+import { useRoute } from '../lib/useRoute'
 import { pushUndo } from '../lib/undo'
 import { reportProblem } from '../lib/problems'
 
@@ -22,7 +22,8 @@ export function Drawer({
   open: boolean
   onClose: () => void
 }) {
-  const { projectId: openId, projects } = useOpenProject()
+  const { route, projects } = useRoute()
+  const openId = route.kind === 'project' ? route.projectId : null
   const [adding, setAdding] = useState('')
 
   async function add(e: React.FormEvent) {

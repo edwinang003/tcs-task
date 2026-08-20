@@ -14,12 +14,15 @@ import { useRef, useState } from 'react'
 import { addTask } from '../lib/repo'
 import { pushUndo } from '../lib/undo'
 import { reportProblem } from '../lib/problems'
-import { useOpenProject } from '../lib/useOpenProject'
+import { useRoute } from '../lib/useRoute'
+import { activeWorkspace } from '../lib/workspace'
 
 export function QuickAdd() {
   const [title, setTitle] = useState('')
   const input = useRef<HTMLInputElement>(null)
-  const { projectId } = useOpenProject()
+  const { route } = useRoute()
+  const projectId =
+    route.kind === 'project' ? route.projectId : activeWorkspace().projectId
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
