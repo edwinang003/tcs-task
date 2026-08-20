@@ -3,7 +3,7 @@
 The client. See [`../docs/SPEC.md`](../docs/SPEC.md) for the design; section
 numbers in code comments refer to it.
 
-Currently at **P0b slice 9a — search** (SPEC §13). A field finds a task by any
+Currently at **P0b slice 9b — search filters** (SPEC §13). A field finds a task by any
 words you remember from its title or its notes, across every live project —
 title matches first, then tasks that matched only in their notes, each showing
 the stretch of note that matched. The terms are ANDed rather than matched as
@@ -11,6 +11,14 @@ one string, because the words you remember are rarely contiguous. Completed
 tasks are findable, since half of why you search is to find what you already
 did; archived projects are not. It is a route like Today, listed in the
 drawer, and it works with the network off like everything else.
+
+Under the field is a row of chips: four date presets — overdue, today, this
+week, no date — then every label, then every project. They combine with the
+words by AND, and with each other by the rule that makes sense for the kind:
+two projects widen, because a task has exactly one, and two labels narrow,
+because a task carries many. A chip is a query on its own, so finding
+everything labelled `waiting-on` that is overdue takes no words at all. None
+of it persists — the route does, the query does not.
 
 A task carries
 cross-project tags: create one by typing its name in the sheet, and every task
@@ -60,7 +68,7 @@ npm run build    # tsc -b && vite build  → dist/
 npm run preview  # serve dist/ locally
 npm test         # vitest — lib unit tests (ids, order keys, db, migration, outbox,
                  #   repo, grouping, nav, undo, dates, progress, labelling,
-                 #   search)
+                 #   search, filters)
 npm run lint     # oxlint
 npm run icons    # regenerate public/icon-*.png
 ```
@@ -136,6 +144,7 @@ src/
     progress.ts             how far through a checklist a task is (pure)
     labelling.ts            the palette, and which labels a task carries (pure)
     search.ts               titles and notes, scanned (pure; SPEC §5)
+    filters.ts              the chips, as rules (pure; SPEC §4, §4.1)
     useCrossProject.ts      what every cross-project view subscribes to
     db.ts                   the ONLY file importing Dexie (SPEC §11.3 rule 1)
     outbox.ts               the coalescing append (SPEC §9.1)
@@ -153,6 +162,7 @@ src/
     AgendaList.tsx          Today and Upcoming
     CrossProjectRows.tsx    the rows those three views share
     SearchList.tsx          the field, and what it found
+    FilterChips.tsx         project, label and date, under the field
     TaskSheet.tsx           the task editor, auto-saving
     Checklist.tsx           the sheet's sub-steps, live-queried
     LabelPicker.tsx         the sheet's labels, live-queried
