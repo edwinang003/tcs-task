@@ -1,10 +1,17 @@
 /**
- * The list, divided by section.
+ * A project, as a list or as a board.
+ *
+ * SPEC §5: "list ⇄ board is a rendering choice, not a data choice. In list
+ * view, sections are collapsible headers with tasks beneath. In board view,
+ * the same sections are columns and the same tasks are cards." One component
+ * makes that structurally true rather than merely intended — there is one
+ * `onDrop`, one `describe`, and one place the undo-toast rule lives.
  *
  * SPEC §4: completing a task moves it into the project's done section, so the
- * row genuinely leaves the group you were looking at. The done section is
- * collapsed by default and is the only one that collapses — a project you have
- * used for a month is mostly history, and the completed log is P2's job.
+ * row genuinely leaves the group you were looking at. In the list that section
+ * is collapsed by default and is the only one that collapses; on the board it
+ * is an ordinary column, which is where the gesture reads best — dragging a
+ * card into Done completes it.
  */
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -17,12 +24,15 @@ import { pushUndo } from '../lib/undo'
 import { SectionHeader } from './SectionHeader'
 import { TaskRow } from './TaskRow'
 import { DragArea, DragGroup, DragItem } from './DraggableList'
+import type { ViewMode } from '../lib/view'
 
 export function TaskList({
   projectId,
+  view,
   onOpen,
 }: {
   projectId: string
+  view: ViewMode
   onOpen: (id: string) => void
 }) {
   const tasks = useLiveQuery(() => listTasks(projectId), [projectId])
@@ -40,6 +50,16 @@ export function TaskList({
   const groups = groupBySection(sections, tasks)
   const openSections = sections.filter((s) => !s.is_done_section).length
 
+  const board = view === 'board'
+  // Whether the done section is somewhere you can still see. On the board it
+  // always is; in the list it is behind a collapsed header unless you opened
+  // it. Two things follow from it, and both are the same rule `Toast.tsx`
+  // already follows: an undo toast means the row left the screen.
+  const showsDone = board || doneOpen
+
+  /** One column, wide enough to fill a phone and to fit four on a laptop. */
+  const column = 'w-[85vw] shrink-0 snap-start lg:w-72'
+
   const onDrop = (activeId: string, overId: string | null) => {
     setDragging(null)
     const target = resolveDrop(groups, activeId, overId)
@@ -47,9 +67,10 @@ export function TaskList({
 
     // A toast only when the row left the screen — the rule `Toast.tsx`
     // already follows. Dropping into a collapsed Done both hides the task and
-    // completes it; a reorder you can still see needs no offer.
+    // completes it; a reorder you can still see needs no offer, and on a board
+    // the Done column is right there.
     const done = sections.find((s) => s.is_done_section)
-    const vanished = target.sectionId === done?.id && !doneOpen
+    const vanished = target.sectionId === done?.id && !showsDone
 
     void dropTaskAt(activeId, target.sectionId, target.beforeId, {
       toast: vanished,
@@ -77,12 +98,28 @@ export function TaskList({
 
   const draggedTask = tasks.find((t) => t.id === dragging)
 
+  // Defined once and placed in one of two slots: below the list, or as the
+  // last column of the board.
+  const sectionForm = (
+    <form onSubmit={addNewSection} className={board ? undefined : 'mt-4'}>
+      <input
+        value={adding}
+        onChange={(e) => setAdding(e.target.value)}
+        placeholder="+ Section"
+        aria-label="New section"
+        enterKeyHint="done"
+        className="min-h-11 w-full rounded-xl bg-transparent px-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 dark:text-neutral-100 dark:placeholder:text-neutral-500"
+      />
+    </form>
+  )
+
   return (
-    <div className="mx-auto max-w-2xl px-3 py-2">
+    <div className={board ? 'px-3 py-2' : 'mx-auto max-w-2xl px-3 py-2'}>
       <DragArea
         onStart={setDragging}
         onDrop={onDrop}
         describe={describe}
+        vertical={!board}
         overlay={
           draggedTask === undefined ? null : (
             <div className="rounded-xl bg-white px-3 py-2 shadow-lg dark:bg-neutral-800">
@@ -93,14 +130,26 @@ export function TaskList({
           )
         }
       >
+      {/* One column fills a phone and you swipe between them; four fit a
+          laptop. The snap is what stops a swipe leaving you between two. */}
+      <div
+        className={
+          board
+            ? 'flex snap-x snap-mandatory items-start gap-3 overflow-x-auto'
+            : undefined
+        }
+      >
       {groups.map((group) => {
         const isDone = group.section.is_done_section
-        const collapsed = isDone ? !doneOpen : null
+        // Only the list collapses Done. A column costs no vertical space, and
+        // a drop that completes a task has to have somewhere to land.
+        const collapsed = board ? null : isDone ? !doneOpen : null
         return (
-          <section key={group.section.id}>
+          <section key={group.section.id} className={board ? column : undefined}>
             <DragGroup
               id={group.section.id}
               itemIds={collapsed === true ? [] : group.tasks.map((t) => t.id)}
+              minHeight={board}
             >
             <SectionHeader
               section={group.section}
@@ -120,7 +169,7 @@ export function TaskList({
                         task={task}
                         onOpen={onOpen}
                         handle={handle}
-                        hidesOnComplete
+                        hidesOnComplete={!showsDone}
                       />
                     )}
                   </DragItem>
@@ -131,18 +180,11 @@ export function TaskList({
           </section>
         )
       })}
+      {board && <div className={column}>{sectionForm}</div>}
+      </div>
       </DragArea>
 
-      <form onSubmit={addNewSection} className="mt-4">
-        <input
-          value={adding}
-          onChange={(e) => setAdding(e.target.value)}
-          placeholder="+ Section"
-          aria-label="New section"
-          enterKeyHint="done"
-          className="min-h-11 w-full rounded-xl bg-transparent px-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 dark:text-neutral-100 dark:placeholder:text-neutral-500"
-        />
-      </form>
+      {!board && sectionForm}
     </div>
   )
 }

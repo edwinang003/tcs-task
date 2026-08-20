@@ -10,6 +10,7 @@ import { Drawer } from './components/Drawer'
 import { AgendaList } from './components/AgendaList'
 import { renameProject, archiveProject } from './lib/repo'
 import { useRoute } from './lib/useRoute'
+import { useView } from './lib/useView'
 import { useInlineRename } from './lib/useInlineRename'
 import { pushUndo } from './lib/undo'
 
@@ -17,7 +18,7 @@ import { pushUndo } from './lib/undo'
 const TITLES = { today: 'Today', upcoming: 'Upcoming' }
 
 /**
- * P0b slice 5 — Today and Upcoming (SPEC §13).
+ * P0b slice 6 — the same project as a list or a board (SPEC §5, §13).
  *
  * The drawer is an overlay on a phone and a pinned sidebar from `lg` up, which
  * is why the layout is a flex row rather than the single column P0a had.
@@ -30,6 +31,7 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   const { route, project, loaded } = useRoute()
+  const { view, setView } = useView(project)
 
   const rename = useInlineRename(project?.name ?? '', async (name) => {
     if (project === undefined) return
@@ -86,6 +88,24 @@ export default function App() {
               <>
                 <button
                   type="button"
+                  onClick={() => setView(view === 'board' ? 'list' : 'board')}
+                  // A toggle button, not two: the phone header already carries
+                  // ☰, the title, Rename, Archive and Install. `aria-pressed`
+                  // is why the label stays "Board" in both states — a label
+                  // that flipped to "List" would read as a different button to
+                  // a screen reader that was just told the state.
+                  aria-pressed={view === 'board'}
+                  className={
+                    'min-h-11 rounded-lg px-2 text-sm ' +
+                    (view === 'board'
+                      ? 'bg-accent/15 text-neutral-900 dark:text-neutral-100'
+                      : 'text-neutral-500 dark:text-neutral-400')
+                  }
+                >
+                  Board
+                </button>
+                <button
+                  type="button"
                   onClick={rename.start}
                   disabled={rename.renaming}
                   className="min-h-11 px-2 text-sm text-neutral-500 dark:text-neutral-400"
@@ -107,7 +127,11 @@ export default function App() {
 
         <main className="flex-1 overflow-y-auto">
           {route.kind === 'project' ? (
-            <TaskList projectId={route.projectId} onOpen={setOpenTaskId} />
+            <TaskList
+              projectId={route.projectId}
+              view={view}
+              onOpen={setOpenTaskId}
+            />
           ) : (
             <AgendaList kind={route.kind} onOpen={setOpenTaskId} />
           )}

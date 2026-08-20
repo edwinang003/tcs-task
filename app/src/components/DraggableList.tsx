@@ -13,6 +13,10 @@
  * the list scrolling if it were on a row, and on a phone the rows *are* the
  * list. So the drag starts from a grip that owns its own patch of screen, and
  * everything else on the row behaves normally.
+ *
+ * `verticalListSortingStrategy` stays in both views: cards still sort up and
+ * down *within* a column, and a move between columns goes through the group's
+ * own droppable, exactly as a move between sections does in the list.
  */
 import { type ReactNode } from 'react'
 import {
@@ -38,10 +42,19 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
+/**
+ * Hoisted so the array identity does not change on every render. A list can
+ * only move a row up and down; a board's columns are side by side, so the
+ * board takes the restriction off.
+ */
+const VERTICAL_ONLY = [restrictToVerticalAxis]
+const FREE: typeof VERTICAL_ONLY = []
+
 export function DragArea({
   onStart,
   onDrop,
   describe,
+  vertical,
   overlay,
   children,
 }: {
@@ -50,6 +63,8 @@ export function DragArea({
   onDrop: (activeId: string, overId: string | null) => void
   /** How to name a task or a section out loud, for screen readers. */
   describe: (id: string) => string
+  /** True in the list, false on the board, where columns are side by side. */
+  vertical: boolean
   overlay: ReactNode
   children: ReactNode
 }) {
@@ -83,7 +98,7 @@ export function DragArea({
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
-      modifiers={[restrictToVerticalAxis]}
+      modifiers={vertical ? VERTICAL_ONLY : FREE}
       accessibility={{ announcements }}
       onDragStart={(event: DragStartEvent) => onStart(String(event.active.id))}
       onDragCancel={() => onDrop('', null)}
@@ -106,10 +121,16 @@ export function DragArea({
 export function DragGroup({
   id,
   itemIds,
+  minHeight,
   children,
 }: {
   id: string
   itemIds: string[]
+  /**
+   * A board column with no cards in it is still a place to drop one — and
+   * with nothing inside, it has no height for a thumb to aim at.
+   */
+  minHeight?: boolean
   children: ReactNode
 }) {
   const { setNodeRef, isOver } = useDroppable({ id })
@@ -118,7 +139,9 @@ export function DragGroup({
       <div
         ref={setNodeRef}
         className={
-          'rounded-xl transition-colors ' + (isOver ? 'bg-accent/10' : 'bg-transparent')
+          'rounded-xl transition-colors ' +
+          (minHeight === true ? 'min-h-24 ' : '') +
+          (isOver ? 'bg-accent/10' : 'bg-transparent')
         }
       >
         {children}
