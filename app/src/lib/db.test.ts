@@ -8,19 +8,22 @@ describe('schema', () => {
     dbs.length = 0
   })
 
-  it('is at version 4, with the five tables', async () => {
-    // Version 4 is a pure `stores` bump — a table that has never existed has
-    // no rows to backfill. The exact mirror of version 3, which was an
-    // `upgrade` with no `stores` because `default_view` is not indexed.
+  it('is at version 5, with the seven tables', async () => {
+    // Version 5 is a pure `stores` bump, like version 4: tables that have
+    // never existed have no rows to backfill. `labels` carries a name index
+    // because the drawer reads in that order and the picker checks it for a
+    // duplicate before creating one.
     const db = createDb('lane-schema-test')
     dbs.push(db)
     await db.open()
-    expect(db.verno).toBe(4)
+    expect(db.verno).toBe(5)
     expect(db.tables.map((t) => t.name).sort()).toEqual([
       'checklist_items',
+      'labels',
       'outbox',
       'projects',
       'sections',
+      'task_labels',
       'tasks',
     ])
   })

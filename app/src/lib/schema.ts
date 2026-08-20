@@ -91,6 +91,41 @@ export interface ChecklistItem extends SyncColumns {
   position: string
 }
 
+/** SPEC §4.1 — `labels`. Cross-project tags; §4 says a task is in exactly
+ * one project, so labels carry everything that cuts across. */
+export interface Label extends SyncColumns {
+  name: string
+  /**
+   * A palette key from `labelling.ts` — `'rose'`, not `'#e11d48'`.
+   *
+   * Two reasons, and the second binds. Every colour here is a *pair*: the dot
+   * that reads on white is not the one that reads on near-black, so the
+   * palette resolves to a class per theme rather than to a value. And
+   * Tailwind's compiler only emits classes it can see in the source, so a
+   * class name assembled at runtime from a stored hex is purged from the
+   * build and renders unstyled.
+   */
+  color: string
+}
+
+/**
+ * SPEC §4.1 — `task_labels`. The app's first many-to-many.
+ *
+ * §4.1 lists no `id` column, but the outbox keys every entry by `row_id` and
+ * §9.2 upserts by row id, so the join row needs an identity. It is
+ * **computed** — `` `${task_id}.${label_id}` `` — not generated.
+ *
+ * A join row is the one row shape where two devices offline can independently
+ * invent the same fact. With a generated id that is two live rows asserting
+ * one thing and a dedupe on every read; with a computed one both devices
+ * produce the same row id and the push collapses them. `db.ts` already relies
+ * on exactly this for the seeded workspace.
+ */
+export interface TaskLabel extends SyncColumns {
+  task_id: string
+  label_id: string
+}
+
 /**
  * SPEC §9.1 — one entry per dirty row, not a delta log.
  *
@@ -127,9 +162,10 @@ export const SERVER_OWNED_COLUMNS = ['updated_at', 'reminder_sent_at'] as const
  * against an explicit whitelist, so adding a server-owned table later is a
  * one-line change rather than a security review.
  *
- * Listed in SPEC §9.2's push order — `workspaces → projects → sections → tasks
- * → checklist_items → labels → task_labels` — minus the tables that do not
- * exist yet. The order is inert today: this is a whitelist, and the real push
+ * Listed in SPEC §9.2's push order — `workspaces → projects → sections →
+ * tasks → checklist_items → labels → task_labels` — minus `workspaces`, which
+ * is not a client-writable table. With `task_labels` this list is complete:
+ * every table §9.2 names now exists. The order is inert today: this is a whitelist, and the real push
  * order comes from the outbox's `seq`. But §9.2's dependency chain has to be
  * written down somewhere it cannot drift away from the schema, and this is the
  * one list of tables the app already keeps.
@@ -139,6 +175,8 @@ export const PUSHABLE_TABLES = [
   'sections',
   'tasks',
   'checklist_items',
+  'labels',
+  'task_labels',
 ] as const
 
 /** The tables a write can target. `outbox` is deliberately not one. */
