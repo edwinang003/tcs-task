@@ -116,7 +116,12 @@ export function TaskList({
                 {group.tasks.map((task) => (
                   <DragItem key={task.id} id={task.id}>
                     {(handle) => (
-                      <TaskRow task={task} onOpen={onOpen} handle={handle} />
+                      <TaskRow
+                        task={task}
+                        onOpen={onOpen}
+                        handle={handle}
+                        hidesOnComplete
+                      />
                     )}
                   </DragItem>
                 ))}

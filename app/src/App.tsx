@@ -7,16 +7,23 @@ import { ProblemToast } from './components/ProblemToast'
 import { TaskSheet } from './components/TaskSheet'
 import { UpdatePrompt } from './components/UpdatePrompt'
 import { Drawer } from './components/Drawer'
+import { AgendaList } from './components/AgendaList'
 import { renameProject, archiveProject } from './lib/repo'
 import { useRoute } from './lib/useRoute'
 import { useInlineRename } from './lib/useInlineRename'
 import { pushUndo } from './lib/undo'
 
+/** The two views that are not projects, and the header they cannot use. */
+const TITLES = { today: 'Today', upcoming: 'Upcoming' }
+
 /**
- * P0b slice 3 — projects and sections (SPEC §13).
+ * P0b slice 5 — Today and Upcoming (SPEC §13).
  *
  * The drawer is an overlay on a phone and a pinned sidebar from `lg` up, which
  * is why the layout is a flex row rather than the single column P0a had.
+ *
+ * Rename and Archive leave the header on an agenda route rather than being
+ * disabled there: a button that never enables is worse than an absent one.
  */
 export default function App() {
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
@@ -28,6 +35,13 @@ export default function App() {
     if (project === undefined) return
     pushUndo(await renameProject(project.id, name))
   })
+
+  const title =
+    route.kind === 'project'
+      ? loaded
+        ? (project?.name ?? 'Lane')
+        : ''
+      : TITLES[route.kind]
 
   async function archive() {
     if (project === undefined) return
@@ -54,7 +68,7 @@ export default function App() {
             >
               ☰
             </button>
-            {rename.renaming && project !== undefined ? (
+            {route.kind === 'project' && rename.renaming && project !== undefined ? (
               <input
                 {...rename.inputProps}
                 aria-label="Project name"
@@ -62,34 +76,40 @@ export default function App() {
               />
             ) : (
               <h1
-                onDoubleClick={rename.start}
+                onDoubleClick={route.kind === 'project' ? rename.start : undefined}
                 className="flex-1 truncate text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100"
               >
-                {loaded ? (project?.name ?? 'Lane') : ''}
+                {title}
               </h1>
             )}
-            <button
-              type="button"
-              onClick={rename.start}
-              disabled={rename.renaming}
-              className="min-h-11 px-2 text-sm text-neutral-500 dark:text-neutral-400"
-            >
-              Rename
-            </button>
-            <button
-              type="button"
-              onClick={archive}
-              className="min-h-11 px-2 text-sm text-neutral-500 dark:text-neutral-400"
-            >
-              Archive
-            </button>
+            {route.kind === 'project' && (
+              <>
+                <button
+                  type="button"
+                  onClick={rename.start}
+                  disabled={rename.renaming}
+                  className="min-h-11 px-2 text-sm text-neutral-500 dark:text-neutral-400"
+                >
+                  Rename
+                </button>
+                <button
+                  type="button"
+                  onClick={archive}
+                  className="min-h-11 px-2 text-sm text-neutral-500 dark:text-neutral-400"
+                >
+                  Archive
+                </button>
+              </>
+            )}
             <InstallButton />
           </div>
         </header>
 
         <main className="flex-1 overflow-y-auto">
-          {route.kind === 'project' && (
+          {route.kind === 'project' ? (
             <TaskList projectId={route.projectId} onOpen={setOpenTaskId} />
+          ) : (
+            <AgendaList kind={route.kind} onOpen={setOpenTaskId} />
           )}
         </main>
 

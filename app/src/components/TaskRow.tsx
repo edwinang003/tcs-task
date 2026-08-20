@@ -6,10 +6,15 @@
  * must look and behave the same in both. That is this file: the part that must
  * not drift, in the one place it can be changed.
  *
- * Both extras are optional and absent by default, which is what keeps each
- * list honest. The agenda views have no drag because nothing hands them a
- * handle, not because a flag switched it off; the project list has no badge
- * because it would be the same word on every row.
+ * The extras are optional and absent by default, which is what keeps each list
+ * honest. The agenda views have no drag because nothing hands them a handle,
+ * not because a flag switched it off; the project list has no badge because it
+ * would be the same word on every row.
+ *
+ * `hidesOnComplete` is the third: only the list knows whether ticking a box
+ * takes the row away. In a project it does — the task leaves for a collapsed
+ * Done — and the undo toast is the way back. In Today it does not, and a toast
+ * for a row still on the screen is noise.
  */
 import { setTaskDone, deleteTask } from '../lib/repo'
 import { formatDue, isOverdue } from '../lib/dates'
@@ -21,6 +26,7 @@ export function TaskRow({
   onOpen,
   badge,
   handle,
+  hidesOnComplete = false,
 }: {
   task: Task
   onOpen: (id: string) => void
@@ -28,6 +34,8 @@ export function TaskRow({
   badge?: string
   /** dnd-kit's grip props, in the list that can be reordered. */
   handle?: Record<string, unknown>
+  /** Whether ticking the box takes the row off this screen. */
+  hidesOnComplete?: boolean
 }) {
   const done = task.completed_at !== null
   const due = formatDue(task.due_on, task.due_time)
@@ -40,7 +48,11 @@ export function TaskRow({
         <input
           type="checkbox"
           checked={done}
-          onChange={(e) => void setTaskDone(task.id, e.target.checked).then(pushUndo)}
+          onChange={(e) =>
+            void setTaskDone(task.id, e.target.checked, {
+              toast: hidesOnComplete && e.target.checked,
+            }).then(pushUndo)
+          }
           aria-label={`Complete ${task.title}`}
           className="size-5 shrink-0 accent-accent"
         />

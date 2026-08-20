@@ -483,4 +483,23 @@ describe('repo', () => {
 
     expect((await getTask(id))!.due_on).toBeNull()
   })
+
+  it('offers no toast when the caller says the row stays on screen', async () => {
+    // Toast.tsx's rule: an undo is offered when the result left the screen.
+    // Completing from Today leaves the row in place, struck through, so there
+    // is nothing to offer a way back to. Only the list knows which it is.
+    const { id } = await addTask('buy milk', inbox)
+
+    const undo = await setTaskDone(id, true, { toast: false })
+
+    expect(undo!.toast).toBe(false)
+  })
+
+  it('still toasts by default, because completing usually hides the row', async () => {
+    const { id } = await addTask('buy milk', inbox)
+
+    const undo = await setTaskDone(id, true)
+
+    expect(undo!.toast).toBe(true)
+  })
 })
