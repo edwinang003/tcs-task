@@ -8,10 +8,15 @@
  *
  * Project rename and archive live in the header rather than on these rows, so
  * the drawer stays a place you pass through rather than a control panel.
+ *
+ * Labels sit below the projects, and are rows only: tapping one opens it.
+ * Rename, recolour and delete live in that route's header, which is where a
+ * project's live too — the paragraph above is the rule they both follow.
  */
 import { useState } from 'react'
 import { addProject } from '../lib/repo'
-import { openProject, openView } from '../lib/nav'
+import { openProject, openView, openLabel } from '../lib/nav'
+import { dotClasses } from '../lib/labelling'
 import { useRoute } from '../lib/useRoute'
 import { pushUndo } from '../lib/undo'
 import { reportProblem } from '../lib/problems'
@@ -23,8 +28,9 @@ export function Drawer({
   open: boolean
   onClose: () => void
 }) {
-  const { route, projects } = useRoute()
+  const { route, projects, labels } = useRoute()
   const openId = route.kind === 'project' ? route.projectId : null
+  const openLabelId = route.kind === 'label' ? route.labelId : null
   const [adding, setAdding] = useState('')
 
   async function add(e: React.FormEvent) {
@@ -111,6 +117,44 @@ export function Drawer({
             </li>
           ))}
         </ul>
+        {labels.length > 0 && (
+          <>
+            <p className="px-3 pb-2 pt-2 text-xs font-medium uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
+              Labels
+            </p>
+            {/* Capped, and scrollable past the cap, for the same reason the
+                projects list is: the drawer is a fixed-height column and
+                whichever list grows without limit pushes the other off it. */}
+            <ul className="max-h-48 shrink-0 overflow-y-auto">
+              {labels.map((label) => (
+                <li key={label.id}>
+                  <button
+                    type="button"
+                    aria-current={label.id === openLabelId ? 'page' : undefined}
+                    onClick={() => {
+                      openLabel(label.id)
+                      onClose()
+                    }}
+                    className={
+                      'flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left ' +
+                      (label.id === openLabelId
+                        ? 'bg-accent/10 font-medium text-neutral-900 dark:text-neutral-100'
+                        : 'text-neutral-600 dark:text-neutral-300')
+                    }
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={
+                        'size-2 shrink-0 rounded-full ' + dotClasses(label.color)
+                      }
+                    />
+                    <span className="truncate">{label.name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
         <form onSubmit={add} className="border-t border-black/5 py-2 dark:border-white/10">
           <input
             value={adding}
