@@ -76,6 +76,21 @@ export interface Section extends SyncColumns {
   is_done_section: boolean
 }
 
+/** SPEC §4.1 — `checklist_items`. */
+export interface ChecklistItem extends SyncColumns {
+  task_id: string
+  title: string
+  /**
+   * SPEC §4.1 spells this `done`, where `tasks` carries `completed_at`. The
+   * asymmetry is deliberate: a task's completion time is data — P2's completed
+   * log reads it, and §4's done-section binding preserves it across a move —
+   * whereas an item has no detail view for a timestamp to be shown in.
+   */
+  done: boolean
+  /** Fractional index, a string (SPEC §4.2). */
+  position: string
+}
+
 /**
  * SPEC §9.1 — one entry per dirty row, not a delta log.
  *
@@ -111,8 +126,20 @@ export const SERVER_OWNED_COLUMNS = ['updated_at', 'reminder_sent_at'] as const
  * Tables the client may push. SPEC §9.11 item 3 — the push handler validates
  * against an explicit whitelist, so adding a server-owned table later is a
  * one-line change rather than a security review.
+ *
+ * Listed in SPEC §9.2's push order — `workspaces → projects → sections → tasks
+ * → checklist_items → labels → task_labels` — minus the tables that do not
+ * exist yet. The order is inert today: this is a whitelist, and the real push
+ * order comes from the outbox's `seq`. But §9.2's dependency chain has to be
+ * written down somewhere it cannot drift away from the schema, and this is the
+ * one list of tables the app already keeps.
  */
-export const PUSHABLE_TABLES = ['tasks', 'projects', 'sections'] as const
+export const PUSHABLE_TABLES = [
+  'projects',
+  'sections',
+  'tasks',
+  'checklist_items',
+] as const
 
 /** The tables a write can target. `outbox` is deliberately not one. */
 export type TableName = (typeof PUSHABLE_TABLES)[number]

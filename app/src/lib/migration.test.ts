@@ -214,3 +214,43 @@ describe('v2 → v3 migration', () => {
     db.close()
   })
 })
+
+/**
+ * A database as the previous build left it: version 3, no `checklist_items`.
+ * Returns the outbox length, so the v4 test can prove the migration enqueues
+ * nothing.
+ */
+async function seedV3(name: string) {
+  const v3 = createDb(name, 3)
+  await v3.open()
+  const outboxLength = await v3.outbox.count()
+  v3.close()
+  return outboxLength
+}
+
+describe('v3 \u2192 v4 migration', () => {
+  it('adds checklist_items to a database that never had it', async () => {
+    const name = 'lane-migration-checklist-table'
+    await seedV3(name)
+    const db = createDb(name)
+    await db.open()
+
+    expect(db.verno).toBe(4)
+    expect(db.tables.map((t) => t.name)).toContain('checklist_items')
+    expect(await db.checklist_items.count()).toBe(0)
+    db.close()
+  })
+
+  it('adds the table without enqueuing anything to push', async () => {
+    // Unlike v2, which backfilled outbox entries for P0a tasks that had never
+    // been enqueued at all (SPEC \u00a79.1: never drop an entry). A brand-new table
+    // has no rows, so there is nothing for a server to be told.
+    const name = 'lane-migration-checklist-outbox'
+    const before = await seedV3(name)
+    const db = createDb(name)
+    await db.open()
+
+    expect(await db.outbox.count()).toBe(before)
+    db.close()
+  })
+})

@@ -8,14 +8,16 @@ describe('schema', () => {
     dbs.length = 0
   })
 
-  it('is at version 3, with the four tables', async () => {
-    // Version 3 adds no table and no index — it backfills `default_view` onto
-    // project rows the previous build wrote, so the table list is version 2's.
+  it('is at version 4, with the five tables', async () => {
+    // Version 4 is a pure `stores` bump — a table that has never existed has
+    // no rows to backfill. The exact mirror of version 3, which was an
+    // `upgrade` with no `stores` because `default_view` is not indexed.
     const db = createDb('lane-schema-test')
     dbs.push(db)
     await db.open()
-    expect(db.verno).toBe(3)
+    expect(db.verno).toBe(4)
     expect(db.tables.map((t) => t.name).sort()).toEqual([
+      'checklist_items',
       'outbox',
       'projects',
       'sections',
