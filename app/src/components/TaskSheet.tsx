@@ -27,6 +27,7 @@ import {
 import { orderSections } from '../lib/grouping'
 import { pushUndo, type UndoStep } from '../lib/undo'
 import { Checklist } from './Checklist'
+import { LabelPicker } from './LabelPicker'
 
 const PAUSE_MS = 500
 
@@ -184,6 +185,12 @@ export function TaskSheet({
                 both "what this task actually involves", while due date,
                 priority, project and section are all "where and when it sits". */}
             <Checklist taskId={taskId} />
+
+            {/* With the checklist, above Due, for the same reason: notes, a
+                checklist and labels are all "what this task is", while due
+                date, priority, project and section are "where and when it
+                sits". */}
+            <LabelPicker taskId={taskId} />
 
             <div className="mt-4 flex items-center gap-2">
               <span className="w-16 shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400">
