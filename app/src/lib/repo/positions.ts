@@ -32,3 +32,31 @@ export async function appendPositionIn(sectionId: string): Promise<string> {
     .sort()
   return generateKeyBetween(positions.at(-1) ?? null, null)
 }
+
+/**
+ * The key for a task landing directly above `beforeId`, or at the end when
+ * that is null.
+ *
+ * Same two rules as `appendPositionIn`: call it inside the transaction that
+ * writes the key, and count tombstones. `excludeId` is the task being moved —
+ * it is still sitting in the list it is being dragged out of, and using its
+ * own key as one of its neighbours makes `generateKeyBetween` throw.
+ */
+export async function positionBeforeIn(
+  sectionId: string,
+  beforeId: string | null,
+  excludeId: string,
+): Promise<string> {
+  const tasks = await db.tasks.toArray()
+  const siblings = tasks
+    .filter((task) => task.section_id === sectionId && task.id !== excludeId)
+    .sort((a, b) => (a.position < b.position ? -1 : 1))
+
+  const found = beforeId === null ? -1 : siblings.findIndex((t) => t.id === beforeId)
+  const index = found === -1 ? siblings.length : found
+
+  return generateKeyBetween(
+    siblings[index - 1]?.position ?? null,
+    siblings[index]?.position ?? null,
+  )
+}
