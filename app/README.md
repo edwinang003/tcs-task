@@ -3,7 +3,16 @@
 The client. See [`../docs/SPEC.md`](../docs/SPEC.md) for the design; section
 numbers in code comments refer to it.
 
-Currently at **P0b slice 8b — labels** (SPEC §13). A task carries
+Currently at **P0b slice 9a — search** (SPEC §13). A field finds a task by any
+words you remember from its title or its notes, across every live project —
+title matches first, then tasks that matched only in their notes, each showing
+the stretch of note that matched. The terms are ANDed rather than matched as
+one string, because the words you remember are rarely contiguous. Completed
+tasks are findable, since half of why you search is to find what you already
+did; archived projects are not. It is a route like Today, listed in the
+drawer, and it works with the network off like everything else.
+
+A task carries
 cross-project tags: create one by typing its name in the sheet, and every task
 row shows what it carries as coloured dots — in the list, on a board card and
 in Today and Upcoming alike. Labels are listed in the drawer, and opening one
@@ -50,7 +59,8 @@ npm run dev      # vite dev server; the service worker is enabled here too
 npm run build    # tsc -b && vite build  → dist/
 npm run preview  # serve dist/ locally
 npm test         # vitest — lib unit tests (ids, order keys, db, migration, outbox,
-                 #   repo, grouping, nav, undo, dates, progress, labelling)
+                 #   repo, grouping, nav, undo, dates, progress, labelling,
+                 #   search)
 npm run lint     # oxlint
 npm run icons    # regenerate public/icon-*.png
 ```
@@ -125,6 +135,8 @@ src/
     agenda.ts               what is due, and when (pure; SPEC §5)
     progress.ts             how far through a checklist a task is (pure)
     labelling.ts            the palette, and which labels a task carries (pure)
+    search.ts               titles and notes, scanned (pure; SPEC §5)
+    useCrossProject.ts      what every cross-project view subscribes to
     db.ts                   the ONLY file importing Dexie (SPEC §11.3 rule 1)
     outbox.ts               the coalescing append (SPEC §9.1)
     repo/                   the ONLY write path (SPEC §13 P0b constraint)
@@ -134,11 +146,13 @@ src/
       checklist.ts          sub-steps on a task (SPEC §4)
       labels.ts             cross-project tags, and the join rows (SPEC §4)
   components/               UI
-    Drawer.tsx              the two views, then the projects
+    Drawer.tsx              the three views, then the projects, then labels
     SectionHeader.tsx       rename, delete, collapse
     DraggableList.tsx       the ONLY file importing dnd-kit (SPEC §11.3 rule 1)
     TaskRow.tsx             one row, shared by both lists
     AgendaList.tsx          Today and Upcoming
+    CrossProjectRows.tsx    the rows those three views share
+    SearchList.tsx          the field, and what it found
     TaskSheet.tsx           the task editor, auto-saving
     Checklist.tsx           the sheet's sub-steps, live-queried
     LabelPicker.tsx         the sheet's labels, live-queried
