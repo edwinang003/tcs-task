@@ -40,6 +40,8 @@ export function TaskRow({
   progress?: Progress
   /** The labels this task carries, when it has any. */
   labels?: Label[]
+  /** Why a search returned this row, when it matched in the notes. */
+  excerpt?: string
   /** dnd-kit's grip props, in the list that can be reordered. */
   handle?: Record<string, unknown>
   /** Whether ticking the box takes the row off this screen. */

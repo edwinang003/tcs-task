@@ -7,12 +7,9 @@
  * from. What belongs in which group is decided by `lib/agenda.ts`, which is
  * pure and tested; this file only draws the answer.
  */
-import { useLiveQuery } from 'dexie-react-hooks'
-import { listAllTasks, listProjects } from '../lib/repo'
 import { todayAgenda, upcomingAgenda } from '../lib/agenda'
-import { TaskRow } from './TaskRow'
-import { useProgress } from '../lib/useProgress'
-import { useLabels } from '../lib/useLabels'
+import { useCrossProject } from '../lib/useCrossProject'
+import { CrossProjectRows } from './CrossProjectRows'
 
 const EMPTY = {
   today: 'Nothing due today.',
@@ -26,20 +23,18 @@ export function AgendaList({
   kind: 'today' | 'upcoming'
   onOpen: (id: string) => void
 }) {
-  const tasks = useLiveQuery(() => listAllTasks(), [])
-  const projects = useLiveQuery(() => listProjects(), [])
-  const progress = useProgress()
-  const labels = useLabels()
+  const cx = useCrossProject()
 
-  if (tasks === undefined || projects === undefined) {
+  if (!cx.loaded) {
     // First read from IndexedDB. Deliberately blank rather than a spinner —
     // it resolves in a frame or two and a flash of spinner reads as slow.
     return <div className="min-h-32" />
   }
 
   const groups =
-    kind === 'today' ? todayAgenda(tasks, projects) : upcomingAgenda(tasks, projects)
-  const names = new Map(projects.map((p) => [p.id, p.name]))
+    kind === 'today'
+      ? todayAgenda(cx.tasks, cx.projects)
+      : upcomingAgenda(cx.tasks, cx.projects)
 
   return (
     <div className="mx-auto max-w-2xl px-3 py-2">
@@ -62,19 +57,7 @@ export function AgendaList({
           >
             {group.title}
           </h2>
-          <ul>
-            {group.tasks.map((task) => (
-              <li key={task.id}>
-                <TaskRow
-                  task={task}
-                  onOpen={onOpen}
-                  badge={names.get(task.project_id)}
-                  progress={progress.get(task.id)}
-                  labels={labels.get(task.id)}
-                />
-              </li>
-            ))}
-          </ul>
+          <CrossProjectRows tasks={group.tasks} cx={cx} onOpen={onOpen} />
         </section>
       ))}
     </div>
