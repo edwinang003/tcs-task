@@ -60,3 +60,24 @@ export async function positionBeforeIn(
     siblings[index]?.position ?? null,
   )
 }
+
+/**
+ * The key for an item appended to a task's checklist.
+ *
+ * A sibling of `appendPositionIn` rather than a parameter on it. The generic
+ * version — a table name and a parent column — saves four lines and costs both
+ * call sites their readability: `appendPositionIn(section.id)` says what it
+ * does and `appendPositionIn('tasks', 'section_id', section.id)` does not.
+ *
+ * The same two rules apply: call it inside the transaction that writes the key
+ * it returns, and count tombstones, because a delete is undoable for the
+ * length of the toast.
+ */
+export async function appendItemPositionIn(taskId: string): Promise<string> {
+  const items = await db.checklist_items.toArray()
+  const positions = items
+    .filter((item) => item.task_id === taskId)
+    .map((item) => item.position)
+    .sort()
+  return generateKeyBetween(positions.at(-1) ?? null, null)
+}
