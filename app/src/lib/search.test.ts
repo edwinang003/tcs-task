@@ -58,8 +58,9 @@ describe('terms', () => {
   })
 
   it('yields nothing for an empty or whitespace-only query', () => {
-    // Decision 3: an empty query matches nothing rather than everything. A
-    // field that dumps the whole workspace on focus reads as broken.
+    // Which is how `SearchList` knows the field is empty. `search` no
+    // longer treats that as "match nothing" (9b, decision 2), so this is
+    // the check that keeps a field on focus from dumping the workspace.
     expect(terms('')).toEqual([])
     expect(terms('   \t ')).toEqual([])
   })
@@ -88,10 +89,33 @@ describe('search', () => {
     expect(ids(search('call plumber', rows, live))).toEqual(['both'])
   })
 
-  it('returns nothing for an empty or whitespace-only query', () => {
-    const rows = [task('t', { title: 'Pay the rent' })]
-    expect(search('', rows, live)).toEqual([])
-    expect(search('   ', rows, live)).toEqual([])
+  it('applies no text constraint when there are no words', () => {
+    // 9b, decision 2: a query made only of chips runs through this same
+    // function, so no words narrows nothing rather than matching nothing.
+    // Whether that is worth putting on screen is `SearchList`'s call, and
+    // it asks with `terms` and `hasAny` rather than by reading the hits.
+    const rows = [task('a', { title: 'Pay the rent' }), task('b')]
+    expect(ids(search('', rows, live))).toEqual(['a', 'b'])
+    expect(ids(search('   ', rows, live))).toEqual(['a', 'b'])
+  })
+
+  it('carries no excerpt when there are no words', () => {
+    // Nothing matched, so there is nothing to quote. Every task lands in
+    // the title band, where the title is its own explanation anyway.
+    const hits = search('', [task('t', { notes: 'a long note' })], live)
+    expect(hits[0].excerpt).toBeNull()
+  })
+
+  it('still drops a tombstone and an archived project with no words', () => {
+    // The whole reason this went through `search` rather than a second
+    // listing path: these two rules live here, and a chips-only query has
+    // to obey them too.
+    const rows = [
+      task('live', { title: 'still here' }),
+      task('gone', { deleted_at: '2026-08-19T00:00:00.000Z' }),
+      task('archived', { project_id: 'not-in-the-drawer' }),
+    ]
+    expect(ids(search('', rows, live))).toEqual(['live'])
   })
 
   it('puts title matches above notes matches', () => {
