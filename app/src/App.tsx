@@ -16,8 +16,8 @@ import { useView } from './lib/useView'
 import { useInlineRename } from './lib/useInlineRename'
 import { pushUndo } from './lib/undo'
 
-/** The two views that are not projects, and the header they cannot use. */
-const TITLES = { today: 'Today', upcoming: 'Upcoming' }
+/** The three views that are not projects, and the header they cannot use. */
+const TITLES = { today: 'Today', upcoming: 'Upcoming', search: 'Search' }
 
 /**
  * P0b slice 8b — labels (SPEC §4, §13).
@@ -164,6 +164,12 @@ export default function App() {
             />
           ) : route.kind === 'label' ? (
             <LabelList labelId={route.labelId} onOpen={setOpenTaskId} />
+          ) : route.kind === 'search' ? (
+            // The route exists and the header names it; the view itself is
+            // the next commit. An empty main is the honest intermediate
+            // state — the alternative is widening `Route` and `AgendaList`
+            // in one step, which is two reviews in one diff.
+            null
           ) : (
             <AgendaList kind={route.kind} onOpen={setOpenTaskId} />
           )}

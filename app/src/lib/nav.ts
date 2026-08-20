@@ -7,9 +7,10 @@
  *
  * Persisted, so reopening the installed app returns you to where you were
  * rather than to a default. One string holds it: `'today'`, `'upcoming'`,
- * `` `label:<uuid>` ``, or a bare project uuid. A uuid cannot collide with
- * either word or with the prefix, so a value written by any previous build
- * still loads as the route it always meant and no migration is needed.
+ * `'search'`, `` `label:<uuid>` ``, or a bare project uuid. A uuid cannot
+ * collide with any of those words or with the prefix, so a value written by
+ * any previous build still loads as the route it always meant and no
+ * migration is needed.
  */
 import { activeWorkspace } from './workspace'
 import { todayLocal } from './dates'
@@ -30,6 +31,7 @@ export type Route =
   | { kind: 'today' }
   | { kind: 'upcoming' }
   | { kind: 'label'; labelId: string }
+  | { kind: 'search' }
 
 /**
  * What a stored string means.
@@ -42,6 +44,7 @@ export type Route =
 export function parseStored(stored: string | null): Route {
   if (stored === 'today') return { kind: 'today' }
   if (stored === 'upcoming') return { kind: 'upcoming' }
+  if (stored === 'search') return { kind: 'search' }
   // Ahead of the fallback on purpose: that fallback treats anything it does
   // not recognise as a project id, so a label reaching it would open a
   // project that does not exist.
@@ -84,7 +87,7 @@ export function openProject(projectId: string): void {
   go({ kind: 'project', projectId }, projectId)
 }
 
-export function openView(kind: 'today' | 'upcoming'): void {
+export function openView(kind: 'today' | 'upcoming' | 'search'): void {
   if (route.kind === kind) return
   go({ kind }, kind)
 }
