@@ -259,3 +259,54 @@ describe('resolveLabel', () => {
     })
   })
 })
+
+describe('the search route', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('stores as a bare word, like the other two views', () => {
+    openView('search')
+    expect(localStorage.getItem('lane.route')).toBe('search')
+    expect(getRoute()).toEqual({ kind: 'search' })
+  })
+
+  it('reads back ahead of the uuid fallback', () => {
+    // The fallback treats anything it does not recognise as a project id, so
+    // a new word has to be recognised before it gets there or the app opens a
+    // project called "search" that does not exist.
+    expect(parseStored('search')).toEqual({ kind: 'search' })
+  })
+
+  it('still reads the words and uuids that were there before it', () => {
+    expect(parseStored('today')).toEqual({ kind: 'today' })
+    expect(parseStored('upcoming')).toEqual({ kind: 'upcoming' })
+    expect(parseStored('label:abc')).toEqual({ kind: 'label', labelId: 'abc' })
+    expect(parseStored('9f1d7c2e-0000-7000-8000-000000000003')).toEqual({
+      kind: 'project',
+      projectId: '9f1d7c2e-0000-7000-8000-000000000003',
+    })
+  })
+
+  it('does not notify when search is opened twice', () => {
+    openView('search')
+    let calls = 0
+    const off = subscribe(() => calls++)
+    openView('search')
+    expect(calls).toBe(0)
+    openView('today')
+    expect(calls).toBe(1)
+    off()
+  })
+
+  it('captures into Inbox, undated, from the search route', () => {
+    // Inherited rather than written: `captureTarget` dates only on `today`
+    // and everything else falls through. Pinned by this test because it is
+    // right by accident otherwise — and guessing a date here would be the
+    // silent mis-dating §5.1 warns about.
+    expect(captureTarget({ kind: 'search' })).toEqual({
+      projectId: inbox,
+      dueOn: null,
+    })
+  })
+})
