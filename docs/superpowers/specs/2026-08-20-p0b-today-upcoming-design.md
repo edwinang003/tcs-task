@@ -237,9 +237,19 @@ predicted.
 
 ## Undo
 
-Nothing new. Every mutation reachable from an agenda view — tick, delete, and
-the edits in the sheet — already returns an `UndoStep`, and the row is pushed
-by the same `pushUndo` the project list uses.
+Every mutation reachable from an agenda view — tick, delete, and the edits in
+the sheet — already returns an `UndoStep`, and the row is pushed by the same
+`pushUndo` the project list uses. `addTask` with a date returns the same single
+step it returns without one, which undoes the whole creation including the date.
+
+**One thing does change, found in browser verification rather than on paper.**
+`setTaskDone` toasted on completion unconditionally, with a comment calling
+itself "the one completion path that takes its result off the screen". The
+agenda views make that false: a ticked row stays where it is, and `Toast.tsx`'s
+rule is that an undo is offered when the result *left* the screen. So the toast
+becomes the caller's call, exactly as it already is for `dropTaskAt` — only the
+list knows whether the row goes away. `TaskRow` takes `hidesOnComplete`, the
+project list passes it, and the agenda views do not.
 
 `addTask` with a date returns the same single step it returns without one,
 which undoes the whole creation including the date.

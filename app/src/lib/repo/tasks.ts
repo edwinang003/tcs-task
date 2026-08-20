@@ -128,13 +128,23 @@ async function moveTaskTo(
 }
 
 /**
- * A toast, because this is the one completion path that takes its result off
- * the screen — the task leaves the section you were looking at. Reopening does
- * not: the task appears in the first open section, in view.
+ * Completing a task, and the toast that usually goes with it.
+ *
+ * In the project list, completing takes the result off the screen — the task
+ * leaves the section you were looking at for a collapsed Done — so it offers
+ * the way back. Reopening does not: the task appears in the first open
+ * section, in view.
+ *
+ * But whether the row actually leaves is the *list's* business, not this
+ * function's, exactly as it is for `dropTaskAt`: in Today a completed task
+ * stays where it is, struck through, and a toast for a row you can still see
+ * is noise. So the caller may say so. The default is the project list's
+ * behaviour, which is the one every existing caller wants.
  */
 export async function setTaskDone(
   id: string,
   done: boolean,
+  options: { toast?: boolean } = {},
 ): Promise<UndoStep | null> {
   const task = await getTask(id)
   if (task === undefined) return null
@@ -145,7 +155,7 @@ export async function setTaskDone(
     task,
     target,
     done ? 'Task completed' : 'Task reopened',
-    done,
+    options.toast ?? done,
   )
 }
 
