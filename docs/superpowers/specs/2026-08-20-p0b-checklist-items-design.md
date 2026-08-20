@@ -35,7 +35,7 @@ foreign key.
 
 ## The decisions this design rests on
 
-### 1. The row row shows `2/5`
+### 1. The task row shows `2/5`
 
 A checklist you cannot see from the outside is a checklist you forget you
 wrote. §2 takes "a card can open into detail — notes, checklist, labels —
@@ -83,8 +83,9 @@ rows sit there as pending pushes forever.
 §4 is explicit that "checklist items are not tasks", and the temptation here is
 to be clever: all five ticked, so complete the task. It is delightful exactly
 once. Thereafter you tick the last sub-step to record that you did it, and the
-task leaves the screen before you meant it to — the silent state change §5.1
-warns about, wearing a friendly hat.
+task leaves the screen before you meant it to. §5.1 states the principle for
+the quick-add parser and it holds unchanged here: inference is *guessing*, and
+"a guess that hides itself is worse than no parsing at all".
 
 There is a middle option — offer it in a toast — which was rejected because
 `Toast` is currently the undo surface and nothing else. Giving it a second
@@ -192,7 +193,7 @@ inside the transaction that writes the key, and count tombstones.
 ```ts
 export async function deleteTask(id: string): Promise<UndoStep | null> {
   return batch(['tasks', 'checklist_items'], async () => {
-    const items = await liveItemsOf(id)
+    const items = await listChecklistItems(id)
     const stamp = now()
     const steps = [
       await write('tasks', id, { deleted_at: stamp }, 'Task deleted', true),
