@@ -9,20 +9,23 @@
  * No parsing here. SPEC §5.1 puts natural-language quick add in P2, because
  * the naive version is an afternoon and the trustworthy version is the only
  * one worth shipping.
+ *
+ * Where a captured task lands depends on where you are: from Today it arrives
+ * in Inbox dated today, because a task that vanished as you finished typing
+ * would read as a bug and teach people not to trust the field. `captureTarget`
+ * in `nav.ts` holds that rule.
  */
 import { useRef, useState } from 'react'
 import { addTask } from '../lib/repo'
 import { pushUndo } from '../lib/undo'
 import { reportProblem } from '../lib/problems'
 import { useRoute } from '../lib/useRoute'
-import { activeWorkspace } from '../lib/workspace'
+import { captureTarget } from '../lib/nav'
 
 export function QuickAdd() {
   const [title, setTitle] = useState('')
   const input = useRef<HTMLInputElement>(null)
   const { route } = useRoute()
-  const projectId =
-    route.kind === 'project' ? route.projectId : activeWorkspace().projectId
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -32,7 +35,13 @@ export function QuickAdd() {
     // there, so the field should never appear to wait on anything (SPEC §9).
     setTitle('')
     try {
-      const { undo } = await addTask(value, projectId)
+      // Where a captured task lands is a rule about routes, and it lives in
+      // `nav.ts`: from Today it arrives in Inbox dated today, so it appears on
+      // the screen it was typed into rather than vanishing as you finish.
+      const target = captureTarget(route)
+      const { undo } = await addTask(value, target.projectId, {
+        dueOn: target.dueOn,
+      })
       pushUndo(undo)
     } catch (error) {
       // The field was cleared optimistically, so a failure has to hand the
