@@ -25,7 +25,7 @@ export type ViewMode = 'list' | 'board'
  * Exported because the module reads storage once, at import: a test that writes
  * to `localStorage` afterwards proves nothing about how a fresh tab would load.
  * Anything unrecognised is dropped rather than thrown — a display preference is
- * never worth a blank screen, and falling through to the width rule is a good
+ * never worth a blank screen, and falling through to the default is a good
  * answer.
  */
 export function parseViews(raw: string | null): Record<string, ViewMode> {
@@ -80,16 +80,18 @@ export function setView(projectId: string, mode: ViewMode): void {
 /**
  * Which view a project opens in.
  *
- * A stored choice always wins: the width rule supplies a first answer, never
- * an override. Absent one, SPEC §8 rule 6 applies — "default to list view at
- * phone widths. The tablet is wide enough for board view; the phone mostly
- * isn't" — and above that width the project's own initial value decides.
+ * A stored choice always wins; the default is only ever a first answer. And
+ * the default is the board — SPEC §8 rule 6 predicted the phone would want
+ * the list, and P0b's touch-drag work settled it the other way: `dnd-kit`'s
+ * touch sensor makes the board usable at 390px, one column at a time, and
+ * the columns are the sections you already think in.
+ *
+ * `projects.default_view` is deliberately not consulted. Every row in the
+ * database says 'list', because the column has a default and nothing in the
+ * UI writes it — so honouring it here would make this default a no-op on
+ * exactly the projects it is for. The column keeps its place and waits for
+ * P1 to give it a writer.
  */
-export function resolveView(
-  stored: ViewMode | undefined,
-  wide: boolean,
-  initial: ViewMode,
-): ViewMode {
-  if (stored !== undefined) return stored
-  return wide ? initial : 'list'
+export function resolveView(stored: ViewMode | undefined): ViewMode {
+  return stored ?? 'board'
 }

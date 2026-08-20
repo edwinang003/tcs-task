@@ -10,21 +10,19 @@ import {
  * assuming an empty store.
  */
 describe('resolveView', () => {
-  it('honours a stored choice over the width rule', () => {
-    expect(resolveView('board', false, 'list')).toBe('board')
+  it('honours a stored list', () => {
+    expect(resolveView('list')).toBe('list')
   })
 
-  it('honours a stored list on a wide screen whose project starts as a board', () => {
-    expect(resolveView('list', true, 'board')).toBe('list')
+  it('honours a stored board', () => {
+    expect(resolveView('board')).toBe('board')
   })
 
-  it("takes the project's initial value when nothing is stored and there is room", () => {
-    expect(resolveView(undefined, true, 'board')).toBe('board')
-  })
-
-  it('opens a list on a narrow screen however the project starts', () => {
-    // SPEC §8 rule 6: "default to list view at phone widths".
-    expect(resolveView(undefined, false, 'board')).toBe('list')
+  it('opens a board when nothing is stored', () => {
+    // SPEC §8 rule 6, as amended: the board is the default everywhere, the
+    // phone included. Open question 5 asked for that to be settled by use
+    // rather than by argument, and P0b settled it.
+    expect(resolveView(undefined)).toBe('board')
   })
 })
 
@@ -95,7 +93,7 @@ describe('parseViews', () => {
 
   it('drops modes it does not recognise', () => {
     // A newer build's value, or a hand-edited one. Falling through to the
-    // width rule is right; rendering an unknown view is not.
+    // default is right; rendering an unknown view is not.
     expect(parseViews('{"p":"kanban","q":"board"}')).toEqual({ q: 'board' })
   })
 })
