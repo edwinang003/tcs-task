@@ -12,11 +12,10 @@
  * be the silent mis-dating SPEC §5.1 warns about.
  */
 import { useLiveQuery } from 'dexie-react-hooks'
-import { listAllTasks, listProjects, listAllTaskLabels } from '../lib/repo'
+import { listAllTaskLabels } from '../lib/repo'
 import { tasksWithLabel } from '../lib/labelling'
-import { TaskRow } from './TaskRow'
-import { useProgress } from '../lib/useProgress'
-import { useLabels } from '../lib/useLabels'
+import { useCrossProject } from '../lib/useCrossProject'
+import { CrossProjectRows } from './CrossProjectRows'
 
 export function LabelList({
   labelId,
@@ -25,25 +24,22 @@ export function LabelList({
   labelId: string
   onOpen: (id: string) => void
 }) {
-  const tasks = useLiveQuery(() => listAllTasks(), [])
-  const projects = useLiveQuery(() => listProjects(), [])
+  const cx = useCrossProject()
+  // The one subscription this view needs that the other two do not: which
+  // tasks carry this label. `useLabels` reads the same table for the dots but
+  // exposes only the grouped map, and reaching through it would make the
+  // route's membership rule depend on how a row draws itself.
   const links = useLiveQuery(() => listAllTaskLabels(), [])
-  const progress = useProgress()
-  const labels = useLabels()
 
-  if (tasks === undefined || projects === undefined || links === undefined) {
-    // First read from IndexedDB. Deliberately blank rather than a spinner —
-    // it resolves in a frame or two and a flash of spinner reads as slow.
+  if (!cx.loaded || links === undefined) {
     return <div className="min-h-32" />
   }
 
   const carrying = tasksWithLabel(links, labelId)
-  // `listAllTasks` is position-ordered across the workspace, and this keeps
-  // that order rather than imposing one of its own: a label spans projects,
-  // and any ordering by due date or name would claim a priority the label
-  // does not have.
-  const shown = tasks.filter((task) => carrying.has(task.id))
-  const names = new Map(projects.map((p) => [p.id, p.name]))
+  // `cx.tasks` is position-ordered across the workspace, and this keeps that
+  // order rather than imposing one of its own: a label spans projects, and
+  // any ordering by due date or name would claim a priority it does not have.
+  const shown = cx.tasks.filter((task) => carrying.has(task.id))
 
   return (
     <div className="mx-auto max-w-2xl px-3 py-2">
@@ -52,19 +48,7 @@ export function LabelList({
           Nothing carries this label.
         </p>
       )}
-      <ul>
-        {shown.map((task) => (
-          <li key={task.id}>
-            <TaskRow
-              task={task}
-              onOpen={onOpen}
-              badge={names.get(task.project_id)}
-              progress={progress.get(task.id)}
-              labels={labels.get(task.id)}
-            />
-          </li>
-        ))}
-      </ul>
+      <CrossProjectRows tasks={shown} cx={cx} onOpen={onOpen} />
     </div>
   )
 }
