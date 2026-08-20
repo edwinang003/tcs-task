@@ -16,6 +16,8 @@ import type {
   Project,
   Section,
   ChecklistItem,
+  Label,
+  TaskLabel,
   OutboxEntry,
 } from './schema'
 import { activeWorkspace } from './workspace'
@@ -32,6 +34,8 @@ export type LaneDb = Dexie & {
   projects: EntityTable<Project, 'id'>
   sections: EntityTable<Section, 'id'>
   checklist_items: EntityTable<ChecklistItem, 'id'>
+  labels: EntityTable<Label, 'id'>
+  task_labels: EntityTable<TaskLabel, 'id'>
   outbox: EntityTable<OutboxEntry, 'seq'>
 }
 
@@ -129,7 +133,7 @@ async function seedWorkspace(tx: Transaction): Promise<void> {
  */
 export function createDb(
   name: string = DB_NAME,
-  ceiling: 1 | 2 | 3 | 4 = 4,
+  ceiling: 1 | 2 | 3 | 4 | 5 = 5,
 ): LaneDb {
   const db = new Dexie(name) as LaneDb
 
@@ -191,6 +195,27 @@ export function createDb(
     // trick `listAllTasks` uses over `[workspace_id+position]`.
     db.version(4).stores({
       checklist_items:
+        'id, [workspace_id+task_id], [workspace_id+updated_at], deleted_at',
+    })
+  }
+
+  if (ceiling >= 5) {
+    // Version 4's shape again: `stores` with no `upgrade`, because tables that
+    // have never existed have no rows to backfill.
+    //
+    // `task_labels` gets one access-path index beside the sync pair, not two.
+    // The label route wants "every task carrying label X", which reads like it
+    // wants `[workspace_id+label_id]` — but the row dots need every join row in
+    // the workspace already, so that filter runs over data the app is holding
+    // regardless. A second index would be a second read path to keep correct
+    // for no gain.
+    //
+    // `[workspace_id+name]` on `labels` is the drawer's read order and the
+    // picker's duplicate check — the one that stops create-on-the-fly from
+    // producing two labels called `errand`.
+    db.version(5).stores({
+      labels: 'id, [workspace_id+name], [workspace_id+updated_at], deleted_at',
+      task_labels:
         'id, [workspace_id+task_id], [workspace_id+updated_at], deleted_at',
     })
   }

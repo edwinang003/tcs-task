@@ -232,7 +232,9 @@ describe('v3 \u2192 v4 migration', () => {
   it('adds checklist_items to a database that never had it', async () => {
     const name = 'lane-migration-checklist-table'
     await seedV3(name)
-    const db = createDb(name)
+    // Pinned to 4: this case is about the v3 → v4 step, and the default
+    // ceiling moves with every later slice. The v5 case below owns v5.
+    const db = createDb(name, 4)
     await db.open()
 
     expect(db.verno).toBe(4)
@@ -252,5 +254,54 @@ describe('v3 \u2192 v4 migration', () => {
 
     expect(await db.outbox.count()).toBe(before)
     db.close()
+  })
+})
+
+describe('v4 → v5 migration', () => {
+  it('adds the two label tables without disturbing what is there', async () => {
+    const name = 'lane-migration-v5'
+
+    // A database as slice 7 left it: version 4, with a task in it.
+    const v4 = createDb(name, 4)
+    await v4.open()
+    await v4.tasks.add({
+      id: 'task-kept',
+      workspace_id: workspaceId,
+      project_id: projectId,
+      section_id: sectionId,
+      title: 'survive the migration',
+      notes: null,
+      due_on: null,
+      due_time: null,
+      reminder_at: null,
+      reminder_sent_at: null,
+      priority: 0,
+      completed_at: null,
+      recurrence_rule: null,
+      recurrence_parent_id: null,
+      position: 'a0',
+      created_by: null,
+      assignee_id: null,
+      updated_at: '2026-08-01T00:00:00.000Z',
+      deleted_at: null,
+      client_id: 'slice-7-device',
+    })
+    v4.close()
+
+    const db = createDb(name)
+    await db.open()
+
+    expect(db.verno).toBe(5)
+    // The point of the case: a version bump that adds tables must not touch
+    // the rows already there.
+    expect(await db.tasks.get('task-kept')).toMatchObject({
+      title: 'survive the migration',
+      client_id: 'slice-7-device',
+    })
+    expect(await db.labels.count()).toBe(0)
+    expect(await db.task_labels.count()).toBe(0)
+
+    db.close()
+    await db.delete()
   })
 })
