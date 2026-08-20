@@ -6,12 +6,14 @@
  * list. Inbox is not among them: it is a project, and making it a second kind
  * of thing would give the app two spellings of one concept.
  *
- * Project rename and archive live in the header rather than on these rows, so
- * the drawer stays a place you pass through rather than a control panel.
- *
- * Labels sit below the projects, and are rows only: tapping one opens it.
- * Rename, recolour and delete live in that route's header, which is where a
- * project's live too — the paragraph above is the rule they both follow.
+ * Labels sit below the projects, and every row of both lists carries a …
+ * holding rename and the rest. This file used to say the opposite — that
+ * those belonged in the header, so the drawer would stay "a place you pass
+ * through rather than a control panel" — and that rule was aimed at
+ * something real: a sidebar where every row carries visible buttons stops
+ * being navigation. A menu closed by default is not that, and the header it
+ * protected had grown to ☰, the title, a board toggle, Rename, Archive and
+ * Install across 390px, which truncated the project's own name to make room.
  */
 import { useState } from 'react'
 import { addProject } from '../lib/repo'
@@ -20,6 +22,7 @@ import { useRoute } from '../lib/useRoute'
 import { pushUndo } from '../lib/undo'
 import { reportProblem } from '../lib/problems'
 import { LabelRow } from './LabelRow'
+import { ProjectRow } from './ProjectRow'
 
 export function Drawer({
   open,
@@ -97,24 +100,12 @@ export function Drawer({
         </p>
         <ul className="flex-1 overflow-y-auto">
           {projects.map((project) => (
-            <li key={project.id}>
-              <button
-                type="button"
-                aria-current={project.id === openId ? 'page' : undefined}
-                onClick={() => {
-                  openProject(project.id)
-                  onClose()
-                }}
-                className={
-                  'min-h-11 w-full truncate rounded-xl px-3 text-left ' +
-                  (project.id === openId
-                    ? 'bg-accent/10 font-medium text-neutral-900 dark:text-neutral-100'
-                    : 'text-neutral-600 dark:text-neutral-300')
-                }
-              >
-                {project.name}
-              </button>
-            </li>
+            <ProjectRow
+              key={project.id}
+              project={project}
+              current={project.id === openId}
+              onNavigate={onClose}
+            />
           ))}
         </ul>
         {labels.length > 0 && (
