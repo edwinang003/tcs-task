@@ -3,10 +3,15 @@
 The client. See [`../docs/SPEC.md`](../docs/SPEC.md) for the design; section
 numbers in code comments refer to it.
 
-Currently at **P0b slice 6 — list ⇄ board** (SPEC §13). A project is a list
-or a board, toggled from the header and remembered per project and per device —
-the same sections, as headers or as columns, with Done as the last column you
-can drag a card into to complete it.
+Currently at **P0b slice 7 — checklist items** (SPEC §13). A task holds
+sub-steps: add, tick, rename and delete them in the sheet, and every task row
+says how far through them you are — `2/5` next to the due date, in the list, on
+a board card and in Today and Upcoming alike. Deleting a task takes its items
+with it, and one undo brings back both.
+
+A project is a list or a board, toggled from the header and remembered per
+project and per device — the same sections, as headers or as columns, with Done
+as the last column you can drag a card into to complete it.
 
 Two views sit above the projects: **Today**, with overdue pinned above what
 is due today,
@@ -41,7 +46,7 @@ npm run dev      # vite dev server; the service worker is enabled here too
 npm run build    # tsc -b && vite build  → dist/
 npm run preview  # serve dist/ locally
 npm test         # vitest — lib unit tests (ids, order keys, db, migration, outbox,
-                 #   repo, grouping, nav, undo, dates)
+                 #   repo, grouping, nav, undo, dates, progress)
 npm run lint     # oxlint
 npm run icons    # regenerate public/icon-*.png
 ```
@@ -114,12 +119,14 @@ src/
     grouping.ts             tasks into sections, incl. SPEC §4.4's orphan rule
     drag.ts                 where a drop lands (pure; SPEC §8, §13)
     agenda.ts               what is due, and when (pure; SPEC §5)
+    progress.ts             how far through a checklist a task is (pure)
     db.ts                   the ONLY file importing Dexie (SPEC §11.3 rule 1)
     outbox.ts               the coalescing append (SPEC §9.1)
     repo/                   the ONLY write path (SPEC §13 P0b constraint)
       write.ts              create / write / composite / batch
       positions.ts          where a task lands in a section
       tasks.ts · projects.ts · sections.ts
+      checklist.ts          sub-steps on a task (SPEC §4)
   components/               UI
     Drawer.tsx              the two views, then the projects
     SectionHeader.tsx       rename, delete, collapse
@@ -127,6 +134,7 @@ src/
     TaskRow.tsx             one row, shared by both lists
     AgendaList.tsx          Today and Upcoming
     TaskSheet.tsx           the task editor, auto-saving
+    Checklist.tsx           the sheet's sub-steps, live-queried
     Toast.tsx               the undo offer and Ctrl+Z
   sw.ts                     hand-written service worker (SPEC §11.2)
 ```
