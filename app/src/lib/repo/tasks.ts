@@ -6,6 +6,7 @@ import { create, write, batch, composite, now } from './write'
 import { doneSectionOf, firstOpenSectionOf, getSection } from './sections'
 import { appendPositionIn, positionBeforeIn } from './positions'
 import { listChecklistItems } from './checklist'
+import { listTaskLabels } from './labels'
 import type { Task, Section } from '../schema'
 import type { UndoStep } from '../undo'
 
@@ -231,8 +232,13 @@ export function renameTask(id: string, title: string): Promise<UndoStep | null> 
  * that raises a toast rather than relying on the keyboard.
  */
 export async function deleteTask(id: string): Promise<UndoStep | null> {
-  return batch(['tasks', 'checklist_items'], async () => {
+  // `task_labels` joins the scope: a table absent from this list cannot be
+  // written inside the transaction.
+  return batch(['tasks', 'checklist_items', 'task_labels'], async () => {
     const items = await listChecklistItems(id)
+    // Live links only. Untag is itself a tombstone, so a label removed from
+    // this task last week must not come back when the delete is undone.
+    const links = await listTaskLabels(id)
     const stamp = now()
 
     const steps: (UndoStep | null)[] = [
@@ -241,6 +247,11 @@ export async function deleteTask(id: string): Promise<UndoStep | null> {
     for (const item of items) {
       steps.push(
         await write('checklist_items', item.id, { deleted_at: stamp }, 'Task deleted'),
+      )
+    }
+    for (const link of links) {
+      steps.push(
+        await write('task_labels', link.id, { deleted_at: stamp }, 'Task deleted'),
       )
     }
 
