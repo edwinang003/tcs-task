@@ -331,6 +331,13 @@ Three specific cases:
   refuses a tombstone, so a debounced rename that fires after Delete is a
   no-op.
 
+**Amended while planning:** `Toast` renders at `z-20` and `TaskSheet` at `z-30`,
+so an undo offer raised while the sheet is open sits behind the sheet's own
+backdrop. Deleting a checklist item is exactly that case — the sheet stays open
+afterwards, and on a phone there is no Ctrl+Z to fall back on, so the delete
+would have been unrecoverable. `Toast` moves to `z-40`. The design missed this;
+the plan caught it.
+
 ## Testing
 
 Currently 196 passing across 19 files. New and changed:
