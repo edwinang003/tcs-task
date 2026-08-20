@@ -47,9 +47,10 @@ shippable; 8b is useless without it.**
 **8b — browsing**
 
 - Labels listed in the drawer, below the two views, each with its colour.
-- Rename, recolour and delete a label from the drawer.
 - A `label` route: every task carrying it, across projects, rendered like
   Today.
+- Rename, recolour and delete a label from that route's header — not from the
+  drawer row. See the note under Components.
 - Deleting a label tombstones its `task_labels`; the tasks are untouched.
 
 ## The decisions this design rests on
@@ -327,8 +328,23 @@ is one tap away.
   reason `Checklist` does — undo has to be able to put a label back on a sheet
   that is still open — with a draft string protecting the field's cursor.
 - `TaskRow.tsx` — one optional `labels` prop, exactly as it took `progress`.
-- `Drawer.tsx` — a labels list below the views, reusing the rename affordance
-  projects and sections already have.
+- `Drawer.tsx` — a labels list below the views. Rows only: they open the
+  route and nothing else.
+- `LabelHeader.tsx` — rename, recolour and delete, in the label route's
+  header.
+
+  "Reusing the rename affordance projects already have" means reusing *where*
+  it lives, not putting it on the drawer row. `Drawer.tsx` says why: "Project
+  rename and archive live in the header rather than on these rows, so the
+  drawer stays a place you pass through rather than a control panel." A label
+  is a project-shaped thing here — you open it, then you act on it — so its
+  controls sit in the same place a project's do, and the drawer keeps its
+  character.
+
+  Recolour is a choice among eight fixed keys, not a colour picker: tapping
+  the header's dot reveals the palette as a row of eight swatches, and tapping
+  one sets it. One tap to any colour, and it shows what the palette holds —
+  which cycling on tap, the smaller alternative, does not.
 
 ## Data flow
 
