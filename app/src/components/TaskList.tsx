@@ -26,6 +26,7 @@ import { TaskRow } from './TaskRow'
 import { DragArea, DragGroup, DragItem } from './DraggableList'
 import type { ViewMode } from '../lib/view'
 import { useProgress } from '../lib/useProgress'
+import { useLabels } from '../lib/useLabels'
 
 export function TaskList({
   projectId,
@@ -39,6 +40,7 @@ export function TaskList({
   const tasks = useLiveQuery(() => listTasks(projectId), [projectId])
   const sections = useLiveQuery(() => listSections(projectId), [projectId])
   const progress = useProgress()
+  const labels = useLabels()
   const [doneOpen, setDoneOpen] = useState(false)
   const [adding, setAdding] = useState('')
   const [dragging, setDragging] = useState<string | null>(null)
@@ -188,6 +190,7 @@ export function TaskList({
                         handle={handle}
                         hidesOnComplete={!showsDone}
                         progress={progress.get(task.id)}
+                        labels={labels.get(task.id)}
                       />
                     )}
                   </DragItem>
