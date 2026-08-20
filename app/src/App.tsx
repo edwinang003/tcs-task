@@ -9,7 +9,8 @@ import { UpdatePrompt } from './components/UpdatePrompt'
 import { Drawer } from './components/Drawer'
 import { AgendaList } from './components/AgendaList'
 import { LabelList } from './components/LabelList'
-import { renameProject, archiveProject } from './lib/repo'
+import { LabelHeader } from './components/LabelHeader'
+import { renameProject, archiveProject, renameLabel } from './lib/repo'
 import { useRoute } from './lib/useRoute'
 import { useView } from './lib/useView'
 import { useInlineRename } from './lib/useInlineRename'
@@ -19,13 +20,14 @@ import { pushUndo } from './lib/undo'
 const TITLES = { today: 'Today', upcoming: 'Upcoming' }
 
 /**
- * P0b slice 6 — the same project as a list or a board (SPEC §5, §13).
+ * P0b slice 8b — labels (SPEC §4, §13).
  *
  * The drawer is an overlay on a phone and a pinned sidebar from `lg` up, which
  * is why the layout is a flex row rather than the single column P0a had.
  *
  * Rename and Archive leave the header on an agenda route rather than being
- * disabled there: a button that never enables is worse than an absent one.
+ * disabled there: a button that never enables is worse than an absent one. A
+ * label route swaps them for its own three, by the same rule.
  */
 export default function App() {
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
@@ -34,7 +36,15 @@ export default function App() {
   const { route, project, label, loaded } = useRoute()
   const { view, setView } = useView(project)
 
-  const rename = useInlineRename(project?.name ?? '', async (name) => {
+  // One session for both, because only one of them can be open at a time and
+  // two hooks would each hold their own `renaming` flag — leaving a stale one
+  // armed when the route changes underneath it.
+  const renameable = project ?? label
+  const rename = useInlineRename(renameable?.name ?? '', async (name) => {
+    if (route.kind === 'label' && label !== undefined) {
+      pushUndo(await renameLabel(label.id, name))
+      return
+    }
     if (project === undefined) return
     pushUndo(await renameProject(project.id, name))
   })
@@ -67,7 +77,7 @@ export default function App() {
           className="border-b border-black/5 px-4 pb-3 dark:border-white/10"
           style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
         >
-          <div className="mx-auto flex max-w-2xl items-center gap-3">
+          <div className="relative mx-auto flex max-w-2xl items-center gap-3">
             <button
               type="button"
               aria-label="Projects"
@@ -76,15 +86,19 @@ export default function App() {
             >
               ☰
             </button>
-            {route.kind === 'project' && rename.renaming && project !== undefined ? (
+            {rename.renaming && renameable !== undefined ? (
               <input
                 {...rename.inputProps}
-                aria-label="Project name"
+                aria-label={
+                  route.kind === 'label' ? 'Label name' : 'Project name'
+                }
                 className="min-h-11 flex-1 bg-transparent text-lg font-semibold tracking-tight text-neutral-900 outline-none dark:text-neutral-100"
               />
             ) : (
               <h1
-                onDoubleClick={route.kind === 'project' ? rename.start : undefined}
+                onDoubleClick={
+                  renameable !== undefined ? rename.start : undefined
+                }
                 className="flex-1 truncate text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100"
               >
                 {title}
@@ -133,6 +147,9 @@ export default function App() {
                   Archive
                 </button>
               </>
+            )}
+            {route.kind === 'label' && label !== undefined && (
+              <LabelHeader label={label} rename={rename} />
             )}
             <InstallButton />
           </div>
