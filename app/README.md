@@ -3,10 +3,12 @@
 The client. See [`../docs/SPEC.md`](../docs/SPEC.md) for the design; section
 numbers in code comments refer to it.
 
-Currently at **P0b slice 8a — labels** (SPEC §13). A task carries
+Currently at **P0b slice 8b — labels** (SPEC §13). A task carries
 cross-project tags: create one by typing its name in the sheet, and every task
 row shows what it carries as coloured dots — in the list, on a board card and
-in Today and Upcoming alike. Deleting a task takes its labels with it, and one
+in Today and Upcoming alike. Labels are listed in the drawer, and opening one
+shows every task carrying it across every project, with rename, recolour and
+delete in that view's header. Deleting a task takes its labels with it, and one
 undo brings back both.
 
 A task also holds sub-steps: add, tick, rename and delete them in the sheet,
@@ -141,6 +143,8 @@ src/
     Checklist.tsx           the sheet's sub-steps, live-queried
     LabelPicker.tsx         the sheet's labels, live-queried
     LabelDots.tsx           a row's labels, as colour only
+    LabelList.tsx           one label's tasks, across projects
+    LabelHeader.tsx         rename, recolour, delete
     Toast.tsx               the undo offer and Ctrl+Z
   sw.ts                     hand-written service worker (SPEC §11.2)
 ```
