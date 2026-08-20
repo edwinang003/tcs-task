@@ -57,8 +57,17 @@ export function TaskList({
   // already follows: an undo toast means the row left the screen.
   const showsDone = board || doneOpen
 
-  /** One column, wide enough to fill a phone and to fit four on a laptop. */
-  const column = 'w-[85vw] shrink-0 snap-start lg:w-72'
+  /**
+   * One column, wide enough to dominate a phone and to fit four on a laptop —
+   * but not the full width. The sliver of the next column showing past the
+   * right edge is what makes a card draggable into it without waiting on
+   * autoscroll to reveal a target you cannot see.
+   *
+   * The tinted surface is what makes three columns read as a board rather than
+   * three lists that happen to sit side by side.
+   */
+  const column =
+    'w-[78vw] shrink-0 snap-start rounded-2xl bg-black/[0.03] px-1 pb-2 lg:w-72 dark:bg-white/[0.04]'
 
   const onDrop = (activeId: string, overId: string | null) => {
     setDragging(null)
@@ -135,7 +144,13 @@ export function TaskList({
       <div
         className={
           board
-            ? 'flex snap-x snap-mandatory items-start gap-3 overflow-x-auto'
+            ? 'flex items-start gap-3 overflow-x-auto ' +
+              // Snap is a swiping affordance, and mid-drag it fights the drag:
+              // a mandatory snap refuses the intermediate scroll positions
+              // dnd-kit's autoscroll moves through, quantising a slow scroll
+              // into a jump to the far end — so every drop landed in the last
+              // column. It comes off while a card is in the air.
+              (dragging === null ? 'snap-x snap-mandatory' : '')
             : undefined
         }
       >

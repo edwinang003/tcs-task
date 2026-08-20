@@ -95,6 +95,10 @@ export default function App() {
                   // that flipped to "List" would read as a different button to
                   // a screen reader that was just told the state.
                   aria-pressed={view === 'board'}
+                  // Named by the label rather than the text, because the text
+                  // is a glyph on a phone: five words across a 390px header
+                  // truncated the project's own name to "P…".
+                  aria-label="Board"
                   className={
                     'min-h-11 rounded-lg px-2 text-sm ' +
                     (view === 'board'
@@ -102,7 +106,10 @@ export default function App() {
                       : 'text-neutral-500 dark:text-neutral-400')
                   }
                 >
-                  Board
+                  <span aria-hidden="true" className="lg:hidden">
+                    ▥
+                  </span>
+                  <span className="hidden lg:inline">Board</span>
                 </button>
                 <button
                   type="button"
