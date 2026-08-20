@@ -9,13 +9,13 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
-  listTasks, listSections, setTaskDone, deleteTask, addSection, dropTaskAt,
+  listTasks, listSections, addSection, dropTaskAt,
 } from '../lib/repo'
 import { groupBySection } from '../lib/grouping'
 import { resolveDrop } from '../lib/drag'
-import { formatDue, isOverdue } from '../lib/dates'
 import { pushUndo } from '../lib/undo'
 import { SectionHeader } from './SectionHeader'
+import { TaskRow } from './TaskRow'
 import { DragArea, DragGroup, DragItem } from './DraggableList'
 
 export function TaskList({
@@ -113,74 +113,13 @@ export function TaskList({
             />
             {collapsed !== true && (
               <ul>
-                {group.tasks.map((task) => {
-                  const done = task.completed_at !== null
-                  const due = formatDue(task.due_on, task.due_time)
-                  // A completed task is not overdue, however late it was.
-                  const overdue = !done && isOverdue(task.due_on, task.due_time)
-                  return (
-                    <DragItem key={task.id} id={task.id}>
+                {group.tasks.map((task) => (
+                  <DragItem key={task.id} id={task.id}>
                     {(handle) => (
-                    <div className="group flex items-center gap-3 rounded-xl px-1 py-1">
-                      <label className="flex min-h-11 shrink-0 cursor-pointer items-center pl-1 pr-1">
-                        <input
-                          type="checkbox"
-                          checked={done}
-                          onChange={(e) =>
-                            void setTaskDone(task.id, e.target.checked).then(pushUndo)
-                          }
-                          aria-label={`Complete ${task.title}`}
-                          className="size-5 shrink-0 accent-accent"
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => onOpen(task.id)}
-                        className="min-h-11 flex-1 text-left"
-                      >
-                        <span
-                          className={
-                            done
-                              ? 'text-neutral-400 line-through dark:text-neutral-600'
-                              : 'text-neutral-900 dark:text-neutral-100'
-                          }
-                        >
-                          {task.title}
-                        </span>
-                        {due !== null && (
-                          <span
-                            className={
-                              'ml-2 whitespace-nowrap text-xs ' +
-                              (overdue
-                                ? 'text-red-600 dark:text-red-400'
-                                : 'text-neutral-400 dark:text-neutral-500')
-                            }
-                          >
-                            {due}
-                          </span>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void deleteTask(task.id).then(pushUndo)}
-                        aria-label={`Delete ${task.title}`}
-                        className="min-h-11 px-2 text-neutral-300 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 dark:text-neutral-600"
-                      >
-                        &times;
-                      </button>
-                      <button
-                        type="button"
-                        {...handle}
-                        aria-label={`Reorder ${task.title}`}
-                        className="flex min-h-11 shrink-0 cursor-grab items-center pl-1 pr-2 text-lg leading-none text-neutral-300 dark:text-neutral-600"
-                      >
-                        &#10287;
-                      </button>
-                    </div>
+                      <TaskRow task={task} onOpen={onOpen} handle={handle} />
                     )}
-                    </DragItem>
-                  )
-                })}
+                  </DragItem>
+                ))}
               </ul>
             )}
             </DragGroup>
