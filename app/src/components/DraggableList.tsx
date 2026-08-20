@@ -26,10 +26,12 @@ import {
   PointerSensor,
   TouchSensor,
   closestCenter,
+  pointerWithin,
   useDroppable,
   useSensor,
   useSensors,
   type Announcements,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
@@ -49,6 +51,27 @@ import { CSS } from '@dnd-kit/utilities'
  */
 const VERTICAL_ONLY = [restrictToVerticalAxis]
 const FREE: typeof VERTICAL_ONLY = []
+
+/**
+ * Where a drop lands: the thumb first, and only then the nearest centre.
+ *
+ * `closestCenter` alone resolves against the *dragged card's* centre. To reach
+ * a section at the bottom of the list you drag to the bottom edge and hold
+ * there while it scrolls, which leaves that centre below every section — and
+ * the nearest one below is always the done section, so the drop completed the
+ * task instead of landing where you were pointing. A new section is always the
+ * last open one, sitting directly above Done, so it was the section this hit
+ * every time.
+ *
+ * `pointerWithin` answers the question the gesture is actually asking: what is
+ * under my thumb. `closestCenter` stays as the fallback for the case it is
+ * good at — a thumb between two rows mid-list, where the nearest centre is a
+ * better answer than nothing.
+ */
+const dropTarget: CollisionDetection = (args) => {
+  const under = pointerWithin(args)
+  return under.length > 0 ? under : closestCenter(args)
+}
 
 export function DragArea({
   onStart,
@@ -97,7 +120,7 @@ export function DragArea({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={dropTarget}
       modifiers={vertical ? VERTICAL_ONLY : FREE}
       accessibility={{ announcements }}
       onDragStart={(event: DragStartEvent) => onStart(String(event.active.id))}
