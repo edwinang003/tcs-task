@@ -41,7 +41,7 @@ phone, so the chunk stays.
 ### 1. The board exists on the phone, but a project opens as a list there
 
 SPEC §8 rule 6 says to "default to list view at phone widths. The tablet is
-wide enough for board view; the phone mostly isn't." SPEC §16 open question 5
+wide enough for board view; the phone mostly isn't." SPEC §14 open question 5
 asks *how much* the board matters on the phone and says the touch-drag spike
 answers it "empirically rather than by argument".
 
@@ -277,6 +277,7 @@ question 5 rather than smoothed over.
 - **Reordering columns by dragging their headers.** Sections have positions and
   it would work, but the drag seam moves tasks today and column drag is a
   second drag type on the same surface.
-- **Column WIP limits, swimlanes, multiple boards.** SPEC §5.4 lists all three
-  as non-goals.
+- **Swimlanes, multiple boards per project, nested boards.** SPEC §7 lists all
+  three as non-goals. Column WIP limits are not named there, but they are the
+  same kind of thing and nothing in P0b wants them.
 - **Drag to reschedule in Upcoming.** Deferred out of slice 5 and still deferred.
