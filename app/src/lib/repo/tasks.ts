@@ -4,7 +4,7 @@ import { clientId } from '../device'
 import { activeWorkspace } from '../workspace'
 import { create, write, batch, now } from './write'
 import { doneSectionOf, firstOpenSectionOf, getSection } from './sections'
-import { appendPositionIn } from './positions'
+import { appendPositionIn, positionBeforeIn } from './positions'
 import type { Task, Section } from '../schema'
 import type { UndoStep } from '../undo'
 
@@ -79,6 +79,9 @@ async function moveTaskTo(
   label: string,
   toast: boolean,
   extra: Record<string, unknown> = {},
+  // Where in the target section the task lands. Absent means the end, which
+  // is what the checkbox and the sheet's picker want; a drag names a slot.
+  slot?: { before: string | null },
 ): Promise<UndoStep | null> {
   // Same transaction for the read and the write: two checkboxes tapped in
   // quick succession both append into the done section.
@@ -96,7 +99,10 @@ async function moveTaskTo(
           ? (task.completed_at ?? now())
           : null,
         section_id: target.id,
-        position: await appendPositionIn(target.id),
+        position:
+          slot === undefined
+            ? await appendPositionIn(target.id)
+            : await positionBeforeIn(target.id, slot.before, task.id),
       },
       label,
       toast,
@@ -135,6 +141,28 @@ export async function setTaskSection(
   const target = await getSection(sectionId)
   if (task === undefined || target === undefined) return null
   return moveTaskTo(task, target, 'Task moved', target.is_done_section)
+}
+
+/**
+ * A drag, and the third caller of the binding above.
+ *
+ * `beforeId` is the task to land above, or null for the end of the section.
+ * The toast is the caller's call, not this function's: a drop only takes its
+ * result off the screen when the destination is a collapsed section, and only
+ * the list knows what is collapsed.
+ */
+export async function dropTaskAt(
+  id: string,
+  sectionId: string,
+  beforeId: string | null,
+  options: { toast?: boolean } = {},
+): Promise<UndoStep | null> {
+  const task = await getTask(id)
+  const target = await getSection(sectionId)
+  if (task === undefined || target === undefined) return null
+  return moveTaskTo(task, target, 'Task moved', options.toast ?? false, {}, {
+    before: beforeId,
+  })
 }
 
 /**
