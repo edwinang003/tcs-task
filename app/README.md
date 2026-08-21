@@ -109,16 +109,36 @@ package.json` before it ever reaches wrangler. Pointed at `app`, everything
 else is the default. `dist/` is gitignored, so the deploy uploads what the
 build just made rather than anything committed.
 
-**That setting is production-only, so only `main` goes green.** A push to any
-other branch builds at `/` and fails with exactly the `ENOENT` above — an empty
+**In practice, only `main` goes green.** Every push to a non-production
+branch builds at `/` and fails with exactly the `ENOENT` above — an empty
 `Detected the following tools from environment:` line and "No dependencies
-detected to cache" are the giveaway. This is expected, not a regression: the
-layout has not changed since the first commit, and there is nothing in the repo
-to fix. Read build status on `main` and ignore the red checks on feature
-branches. Note also that the dashboard's **Retry build** replays the original
-build's configuration snapshot rather than the current settings, so retrying
-after changing one proves nothing — only a build from a new commit reads what
-the dashboard says today.
+detected to cache" are the giveaway. This is *not* a repo problem: `app/
+package.json` has sat in `app/` since the first commit and no commit ever moved
+it, and the same tree builds green on `main`.
+
+Nor is it a setting you have simply missed. Workers Builds shares the root
+directory and build command across all branches — only the deploy command
+differs (`npx wrangler deploy` on production, `npx wrangler versions upload`
+elsewhere) — so a root directory of `app` should apply to branch builds too. It
+does not, which points at the preview path rather than at this repo. Until that
+changes, read build status on `main` and treat red checks on feature branches as
+noise.
+
+The workaround, if preview builds are ever worth having, is to make the shared
+build command work from either directory:
+
+```sh
+[ -f package.json ] || { cd app && npm ci; }; npm run build
+```
+
+From `app/` that is exactly today's behaviour; from `/` it steps into `app`
+first. The non-production deploy command then also needs `-c app/wrangler.jsonc`
+so wrangler finds its config.
+
+Note too that the dashboard's **Retry build** replays the original build's
+configuration snapshot rather than current settings, so retrying after changing
+one proves nothing — only a build from a new commit reads what the dashboard
+says today.
 
 To deploy by hand — before the dashboard settings are in place, or to push a
 build without a commit:
