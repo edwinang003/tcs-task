@@ -109,6 +109,17 @@ package.json` before it ever reaches wrangler. Pointed at `app`, everything
 else is the default. `dist/` is gitignored, so the deploy uploads what the
 build just made rather than anything committed.
 
+**That setting is production-only, so only `main` goes green.** A push to any
+other branch builds at `/` and fails with exactly the `ENOENT` above — an empty
+`Detected the following tools from environment:` line and "No dependencies
+detected to cache" are the giveaway. This is expected, not a regression: the
+layout has not changed since the first commit, and there is nothing in the repo
+to fix. Read build status on `main` and ignore the red checks on feature
+branches. Note also that the dashboard's **Retry build** replays the original
+build's configuration snapshot rather than the current settings, so retrying
+after changing one proves nothing — only a build from a new commit reads what
+the dashboard says today.
+
 To deploy by hand — before the dashboard settings are in place, or to push a
 build without a commit:
 
